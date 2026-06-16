@@ -23,82 +23,83 @@ def upload_file():
     try:
         doc = Document(file)
         linhas_texto = []
+        
+        # Lê os parágrafos normais
         for paragrafo in doc.paragraphs:
             if paragrafo.text.strip():
                 linhas_texto.append(paragrafo.text)
 
+        # Lê os textos das tabelas e transforma em linhas de texto puro
         for tabela in doc.tables:
             for linha in tabela.rows:
-                texto_linha = " ".join(
-                    c.text.strip() for c in linha.cells if c.text.strip()
-                )
+                texto_linha = " ".join(c.text.strip() for c in linha.cells if c.text.strip())
                 if texto_linha:
                     linhas_texto.append(texto_linha)
 
         texto_completo = "\n".join(linhas_texto)
 
-        # Divide o edital em blocos por Lote
-        blocos_lotes = re.split(
-            r'(?=Lote\s*(?:N°|Nº|:))', texto_completo, flags=re.IGNORECASE
-        )
+        # 1. DIVISÃO BLINDADA: Aceita "Lote N°:", "Lote:", "Lote 1", ignorando espaços e aspas
+        padrao_divisao = r'(?=Lote\s*(?:N[°º\.o]*)?\s*:?\s*\d+)'
+        blocos_lotes = re.split(padrao_divisao, texto_completo, flags=re.IGNORECASE)
 
         lotes_processados = []
 
         for bloco in blocos_lotes:
-            if not bloco.strip() or "Lote" not in bloco:
+            if not bloco.strip() or "lote" not in bloco.lower():
                 continue
 
-            # Captura o número do lote
-            match_lote = re.search(
-                r'Lote\s*(?:N°|Nº|:)?\s*(\d+|S/N)', bloco, re.IGNORECASE
-            )
+            # Captura o Número do Lote
+            match_lote = re.search(r'Lote\s*(?:N[°º\.o]*)?\s*:?\s*(\d+|S/N)', bloco, re.IGNORECASE)
             num_lote = match_lote.group(1) if match_lote else "S/N"
 
-            # Captura de Preço Mínimo e Avaliado imbatível contra espaços
-            match_min = re.search(
-                r"Preço\s+Mínimo\(R\$\):\s*([\d.,]+)", bloco, re.IGNORECASE
-            )
-            preco_minimo = (
-                f"R$ {match_min.group(1).strip()}"
-                if match_min else "Não encontrado"
-            )
+            # 2. CAPTURA DE PREÇOS COM INTELIGÊNCIA ARTIFICIAL (Lógica de Exclusão)
+            
+            # Pega o Valor Avaliado (é sempre o número próximo da palavra Avaliado)
+            match_av = re.search(r'Avaliado[\s\S]{0,40}?([\d]{1,3}(?:\.\d{3})*,\d{2})', bloco, re.IGNORECASE)
+            preco_av_bruto = match_av.group(1) if match_av else None
+            preco_avaliado = f"R$ {preco_av_bruto}" if preco_av_bruto else "Não encontrado"
 
-            match_av = re.search(
-                r"Avaliado\s+em\(R\$\):\s*([\d.,]+)", bloco, re.IGNORECASE
-            )
-            preco_avaliado = (
-                f"R$ {match_av.group(1).strip()}"
-                if match_av else "Não encontrado"
-            )
+            # Tenta achar o Preço Mínimo diretamente (caso esteja formatado direitinho)
+            match_min = re.search(r'Mínimo[\s\S]{0,25}?([\d]{1,3}(?:\.\d{3})*,\d{2})', bloco, re.IGNORECASE)
+            preco_min_bruto = match_min.group(1) if match_min else None
 
-            # Extrai o que sobrou para preencher a descrição
-            linhas_bloco = [l.strip() for l in bloco.split('\n') if l.strip()]
-            descricao_linhas = []
-            for l in linhas_bloco:
-                termo = l.lower()
-                if not any(p in termo for p in [
-                    "lote nº", "lote n°", "preço mínimo",
-                    "avaliado em", "tipo de lote:"
-                ]):
-                    descricao_linhas.append(l)
+            # SE O PREÇO MÍNIMO ESTIVER PERDIDO (Como no Lote 1 dos iPhones):
+            if not preco_min_bruto:
+                # Busca TODOS os valores em Reais no bloco que NÃO são quantidades (un, kg, etc)
+                padrao_precos = r'\b(\d{1,3}(?:\.\d{3})*,\d{2})\b(?!\s*(?:un|unid|kg|g|mg|l|ml|m|cm|mm|pc|peças?|pares?|kit|cx)\b)'
+                todos_precos = re.findall(padrao_precos, bloco, re.IGNORECASE)
+                
+                # O preço mínimo será o maior valor monetário que sobrar no bloco tirando a avaliação
+                precos_restantes = [p for p in todos_precos if p != preco_av_bruto]
+                if precos_restantes:
+                    # Converte pra número pra achar o maior com segurança
+                    preco_min_bruto = max(precos_restantes, key=lambda x: float(x.replace('.', '').replace(',', '.')))
 
-            descricao = (
-                " ".join(descricao_linhas).strip()
-                if descricao_linhas else "Aparelho Tecnológico"
-            )
-            descricao = re.sub(r'\s+', ' ', descricao)
+            preco_minimo = f"R$ {preco_min_bruto}" if preco_min_bruto else "Não encontrado"
+
+            # 3. EXTRAÇÃO DA DESCRIÇÃO (Sem deletar a linha toda)
+            # Remove os cabeçalhos diretamente do texto, sobrando apenas o produto
+            desc = re.sub(r'Lote\s*(?:N[°º\.o]*)?\s*:?\s*\d+', '', bloco, flags=re.IGNORECASE)
+            desc = re.sub(r'Preço Mínimo\(R\$\):?(?:[\s,"]*[\d.,]+)?', '', desc, flags=re.IGNORECASE)
+            desc = re.sub(r'Avaliado em\(R\$\):?(?:[\s,"]*[\d.,]+)?', '', desc, flags=re.IGNORECASE)
+            desc = re.sub(r'Tipo de Lote:\s*[\w/ÁÉÍÓÚÂÊÎÔÛÃÕÇáéíóúâêîôûãõç]+', '', desc, flags=re.IGNORECASE)
+            
+            # Limpa caracteres lixo de tabelas (como aspas e barras perdidas)
+            desc = desc.replace('"', ' ').replace('/ /', ' ').replace('|', ' ')
+            desc = re.sub(r'\s+', ' ', desc).strip(' ,')
+
+            if not desc:
+                desc = "Produto sem descrição."
 
             lotes_processados.append({
                 "lote": num_lote,
                 "preco_minimo": preco_minimo,
                 "preco_avaliado": preco_avaliado,
-                "descricao": descricao
+                "descricao": desc
             })
 
         if not lotes_processados:
-            return jsonify({
-                "error": "Não foi possível estruturar os lotes."
-            }), 400
+            return jsonify([{"lote": "Aviso", "preco_minimo": "-", "descricao": "Tabela lida, mas o layout Lote N° não conectou."}])
 
         return jsonify(lotes_processados)
 
