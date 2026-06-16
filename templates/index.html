@@ -5,7 +5,7 @@
     <title>Analisador de Editais - Receita Federal</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 40px; background-color: #f4f6f9; color: #333; }
-        .container { max-width: 900px; margin: auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+        .container { max-width: 1000px; margin: auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
         h1 { color: #1e3a8a; margin-bottom: 10px; }
         p { color: #666; margin-bottom: 25px; }
         .upload-section { display: flex; gap: 15px; align-items: center; background: #f8fafc; padding: 20px; border: 2px dashed #cbd5e1; border-radius: 6px; margin-bottom: 30px; }
@@ -17,6 +17,7 @@
         tr:hover { background-color: #f8fafc; }
         .badge-lote { background: #e0f2fe; color: #0369a1; padding: 4px 8px; border-radius: 4px; font-weight: bold; }
         .preco-tag { color: #16a34a; font-weight: bold; font-size: 16px; }
+        .preco-avaliado { color: #64748b; font-size: 14px; }
     </style>
 </head>
 <body>
@@ -33,13 +34,14 @@
     <table id="resultado">
         <thead>
             <tr>
-                <th style="width: 15%;">Lote</th>
-                <th style="width: 25%;">Preço Mínimo</th>
-                <th style="width: 60%;">Descrição dos Produtos</th>
+                <th style="width: 10%;">Lote</th>
+                <th style="width: 20%;">Preço Mínimo</th>
+                <th style="width: 20%;">Preço Avaliado</th>
+                <th style="width: 50%;">Descrição dos Produtos</th>
             </tr>
         </thead>
         <tbody>
-            </tbody>
+        </tbody>
     </table>
 </div>
 
@@ -52,7 +54,7 @@
         }
         
         let tbody = document.querySelector("#resultado tbody");
-        tbody.innerHTML = "<tr><td colspan='3' style='text-align:center; color:#666;'>🔄 Processando edital e minerando os preços... Aguarde.</td></tr>";
+        tbody.innerHTML = "<tr><td colspan='4' style='text-align:center; color:#666;'>🔄 Processando edital e minerando os preços... Aguarde.</td></tr>";
         
         let formData = new FormData();
         formData.append("file", fileInput.files[0]);
@@ -63,25 +65,33 @@
             
             tbody.innerHTML = "";
             
-            if(data.erro) {
-                tbody.innerHTML = `<tr><td colspan='3' style='text-align:center; color:red;'>❌ Erro: ${data.erro}</td></tr>`;
+            if(data.error || data.erro) {
+                let msgErro = data.error || data.erro;
+                tbody.innerHTML = `<tr><td colspan='4' style='text-align:center; color:red;'>❌ Erro: ${msgErro}</td></tr>`;
                 return;
             }
             
-            if(data.length === 0) {
-                tbody.innerHTML = "<tr><td colspan='3' style='text-align:center; color:#666;'>Nenhum lote contendo eletrônicos de interesse foi encontrado.</td></tr>";
+            if(!Array.isArray(data) || data.length === 0) {
+                tbody.innerHTML = "<tr><td colspan='4' style='text-align:center; color:#666;'>Nenhum lote contendo eletrônicos de interesse foi encontrado.</td></tr>";
                 return;
             }
             
             data.forEach(item => {
+                // TRAVA ANTIBUG: Se o Python mandar como 'preco_minimo' ou 'preco', o JS aceita sem dar undefined!
+                let valorMinimo = item.preco_minimo || item.preco || "Não encontrado";
+                let valorAvaliado = item.preco_avaliado || "Não encontrado";
+                let numLote = item.lote || "S/N";
+                let descricaoLote = item.descricao || "Sem descrição disponível.";
+
                 tbody.innerHTML += `<tr>
-                    <td><span class="badge-lote">Lote ${item.lote}</span></td>
-                    <td><span class="preco-tag">${item.preco}</span></td>
-                    <td style="font-size: 14px; line-height: 1.4;">${item.descricao}</td>
+                    <td><span class="badge-lote">Lote ${numLote}</span></td>
+                    <td><span class="preco-tag">${valorMinimo}</span></td>
+                    <td><span class="preco-avaliado">${valorAvaliado}</span></td>
+                    <td style="font-size: 14px; line-height: 1.4;">${descricaoLote}</td>
                 </tr>`;
             });
         } catch (error) {
-            tbody.innerHTML = "<tr><td colspan='3' style='text-align:center; color:red;'>❌ Erro crítico de conexão com o servidor.</td></tr>";
+            tbody.innerHTML = "<tr><td colspan='4' style='text-align:center; color:red;'>❌ Erro crítico de conexão com o servidor.</td></tr>";
         }
     }
 </script>
