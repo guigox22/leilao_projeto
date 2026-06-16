@@ -22,12 +22,12 @@ def upload_file():
         doc = Document(file)
         linhas_texto = []
         
-        # 1. Lê parágrafos soltos
+        # 1. Extrai parágrafos estruturados
         for paragrafo in doc.paragraphs:
             if paragrafo.text.strip():
                 linhas_texto.append(paragrafo.text)
 
-        # 2. Lê tabelas misturadas
+        # 2. Extrai tabelas mantendo o alinhamento da linha
         for tabela in doc.tables:
             for linha in tabela.rows:
                 texto_linha = " ".join(c.text.strip() for c in linha.cells if c.text.strip())
@@ -36,7 +36,7 @@ def upload_file():
 
         texto_completo = "\n".join(linhas_texto)
 
-        # 3. Quebra o texto por lotes
+        # 3. Divide o edital pelos Lotes (Garante todas as escritas de 'Lote N°:')
         padrao_divisao = r'(?=Lote\s*(?:N[°º\.o]*)?\s*:?\s*\d+)'
         blocos_lotes = re.split(padrao_divisao, texto_completo, flags=re.IGNORECASE)
 
@@ -46,54 +46,54 @@ def upload_file():
             if not bloco.strip() or "lote" not in bloco.lower():
                 continue
 
-            # Captura o Lote
+            # Captura o número do Lote
             match_lote = re.search(r'Lote\s*(?:N[°º\.o]*)?\s*:?\s*(\d+|S/N)', bloco, re.IGNORECASE)
             num_lote = match_lote.group(1) if match_lote else "S/N"
 
-            # PADRÃO MESTRE: Captura tudo que for dinheiro (ex: 1.950,00 ou 480,00 ou 1,00)
+            # Padrão para achar qualquer valor monetário (ex: 480,00 ou 1.950,00)
             padrao_moeda = r'\d{1,3}(?:\.\d{3})*,\d{2}'
             todos_valores = re.findall(padrao_moeda, bloco)
 
-            preco_avaliado = "Não encontrado"
             preco_minimo = "Não encontrado"
-            preco_av_bruto = None
+            preco_avaliado = "Não encontrado"
 
-            # --- CAPTURA INTELIGENTE DE PREÇOS ---
-            # O Preço Avaliado é o valor que aparece após a palavra "Avaliado"
-            partes_av = re.split(r'Avaliado', bloco, flags=re.IGNORECASE)
-            if len(partes_av) > 1:
-                match_av = re.search(padrao_moeda, partes_av[1])
-                if match_av:
-                    preco_av_bruto = match_av.group(0)
-                    preco_avaliado = f"R$ {preco_av_bruto}"
+            # --- 1. CAPTURA DO PREÇO AVALIADO ---
+            # O Valor Avaliado sempre vem logo após a palavra 'Avaliado em'
+            match_av = re.search(r'Avaliado[\s\S]{0,30}?(\d{1,3}(?:\.\d{3})*,\d{2})', bloco, re.IGNORECASE)
+            if match_av:
+                preco_avaliado = f"R$ {match_av.group(1)}"
+                valor_av_bruto = match_av.group(1)
+            else:
+                valor_av_bruto = None
 
-            # O Preço Mínimo é o maior valor que sobrou na frase inteira
-            valores_restantes = [v for v in todos_valores if v != preco_av_bruto]
+            # --- 2. CAPTURA DO PREÇO MÍNIMO (ESTRATÉGIA DUPLA) ---
+            # Tentativa A: O preço mínimo está logo após a palavra 'Mínimo'
+            match_min_direto = re.search(r'Mínimo[\s\S]{0,15}?(\d{1,3}(?:\.\d{3})*,\d{2})', bloco, re.IGNORECASE)
             
-            if valores_restantes:
-                try:
-                    # Converte para decimal para não confundir com quantidades e achar o maior
-                    maior_restante = max(valores_restantes, key=lambda x: float(x.replace('.', '').replace(',', '.')))
-                    preco_minimo = f"R$ {maior_restante}"
-                except:
-                    pass
+            if match_min_direto:
+                preco_minimo = f"R$ {match_min_direto.group(1)}"
+            elif todos_valores:
+                # Tentativa B (Para o Lote 1): O preço mínimo foi jogado para o fim do bloco.
+                # Pegamos o último valor monetário do bloco, desde que não seja igual ao valor avaliado.
+                valores_filtrados = [v for v in todos_valores if v != valor_av_bruto]
+                if valores_filtrados:
+                    preco_minimo = f"R$ {valores_filtrados[-1]}"
 
-            # --- LIMPEZA DE DESCRIÇÃO ---
+            # --- 3. LIMPEZA DA DESCRIÇÃO ---
             desc = re.sub(r'Lote\s*(?:N[°º\.o]*)?\s*:?\s*\d+', '', bloco, flags=re.IGNORECASE)
             desc = re.sub(r'Preço Mínimo\(R\$\):?', '', desc, flags=re.IGNORECASE)
             desc = re.sub(r'Avaliado em\(R\$\):?', '', desc, flags=re.IGNORECASE)
             desc = re.sub(r'Tipo de Lote:\s*[\w/ÁÉÍÓÚÂÊÎÔÛÃÕÇáéíóúâêîôûãõç]+', '', desc, flags=re.IGNORECASE)
             
-            # Remove os valores numéricos limpos para não poluir a descrição
+            # Remove os valores financeiros da descrição para deixá-lo limpo
             for v in todos_valores:
                 desc = desc.replace(v, '')
             
-            # Remove lixos da tabela
             desc = desc.replace('"', ' ').replace('/ /', ' ').replace('|', ' ')
-            desc = re.sub(r'\s+', ' ', desc).strip(' ,;')
+            desc = re.sub(r'\s+', ' ', desc).strip(' ,;:-')
 
             if not desc or desc.lower() == 'un':
-                desc = "Produto sem descrição detalhada."
+                desc = "Ver detalhes no edital."
 
             lotes_processados.append({
                 "lote": num_lote,
@@ -103,7 +103,7 @@ def upload_file():
             })
 
         if not lotes_processados:
-            return jsonify([{"lote": "Aviso", "preco_minimo": "-", "descricao": "O documento foi lido, mas a formatação falhou."}])
+            return jsonify([{"lote": "Aviso", "preco_minimo": "-", "descricao": "Layout incompatível."}])
 
         return jsonify(lotes_processados)
 
