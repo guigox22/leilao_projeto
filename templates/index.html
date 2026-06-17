@@ -29,10 +29,10 @@
 
 <div class="container">
     <h1>📋 Analisador de Editais - Receita Federal</h1>
-    <p>Suba o arquivo <b>.docx</b> do edital para extrair lotes, preços e gerar sua planilha Excel automaticamente.</p>
+    <p>Suba o arquivo <b>.docx</b> ou <b>.pdf</b> do edital para extrair lotes, preços e gerar sua planilha Excel automaticamente.</p>
     
     <div class="upload-section">
-        <input type="file" id="fileInput" accept=".docx">
+        <input type="file" id="fileInput" accept=".docx,.pdf">
         <button class="btn-extract" onclick="upload()">⚡ Extrair e Filtrar Lotes</button>
     </div>
     
@@ -56,7 +56,6 @@
 </div>
 
 <script>
-    // Variável global para guardar os dados e usá-los na exportação
     let dadosLotes = [];
 
     async function upload() {
@@ -64,7 +63,7 @@
         let btnExportar = document.getElementById("btnExportar");
         
         if(fileInput.files.length === 0) {
-            alert("Por favor, selecione um arquivo .docx primeiro!");
+            alert("Por favor, selecione um arquivo .docx ou .pdf primeiro!");
             return;
         }
         
@@ -93,9 +92,8 @@
                 return;
             }
             
-            // Salva os dados globalmente para o Excel usar
             dadosLotes = data;
-            btnExportar.disabled = false; // Ativa o botão do Excel!
+            btnExportar.disabled = false;
             
             data.forEach(item => {
                 let valorMinimo = item.preco_minimo || item.preco || "Não encontrado";
@@ -115,11 +113,9 @@
         }
     }
 
-    // Função mágica que gera o arquivo do Excel direto no navegador
     function exportarParaExcel() {
         if(dadosLotes.length === 0) return;
 
-        // Monta a estrutura da tabela em formato XML/HTML que o Excel entende nativamente (com acentuação correta)
         let htmlExcel = `
             <meta charset="utf-8">
             <table border="1">
@@ -149,12 +145,10 @@
 
         htmlExcel += "</table>";
 
-        // Cria o link invisível de download
         let blob = new Blob([htmlExcel], { type: "application/vnd.ms-excel" });
         let url = URL.createObjectURL(blob);
         let a = document.createElement("a");
         
-        // Define o nome do arquivo com a data atual
         let dataAtual = new Date().toLocaleDateString('pt-BR').replace(/\//g, '-');
         a.href = url;
         a.download = `Lotes_Receita_Federal_${dataAtual}.xls`;

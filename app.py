@@ -2,6 +2,7 @@ import os
 import re
 from flask import Flask, render_template, request, jsonify
 from docx import Document
+from pypdf import PdfReader
 
 app = Flask(__name__)
 
@@ -18,25 +19,38 @@ def upload_file():
     if file.filename == '':
         return jsonify({"error": "Arquivo sem nome válido"}), 400
 
+    nome_arquivo = file.filename.lower()
+    texto_completo = ""
+
     try:
-        doc = Document(file)
-        linhas_texto = []
+        # --- SE FOR ARQUIVO WORD (.DOCX) ---
+        if nome_arquivo.endswith('.docx'):
+            doc = Document(file)
+            linhas_texto = []
+            for paragrafo in doc.paragraphs:
+                if paragrafo.text.strip():
+                    linhas_texto.append(paragrafo.text)
+            for tabela in doc.tables:
+                for linha in tabela.rows:
+                    texto_linha = " ".join(c.text.strip() for c in linha.cells if c.text.strip())
+                    if texto_linha:
+                        linhas_texto.append(texto_linha)
+            texto_completo = "\n".join(linhas_texto)
+
+        # --- SE FOR ARQUIVO PDF (.PDF) ---
+        elif nome_arquivo.endswith('.pdf'):
+            leitor_pdf = PdfReader(file)
+            paginas_texto = []
+            for pagina in leitor_pdf.pages:
+                texto_pag = pagina.extract_text()
+                if texto_pag:
+                    paginas_texto.append(texto_pag)
+            texto_completo = "\n".join(paginas_texto)
         
-        # 1. Extrai parágrafos normais
-        for paragrafo in doc.paragraphs:
-            if paragrafo.text.strip():
-                linhas_texto.append(paragrafo.text)
+        else:
+            return jsonify({"error": "Formato de arquivo não suportado. Envie .docx ou .pdf"}), 400
 
-        # 2. Extrai tabelas mantendo o texto corrido por linha
-        for tabela in doc.tables:
-            for linha in tabela.rows:
-                texto_linha = " ".join(c.text.strip() for c in linha.cells if c.text.strip())
-                if texto_linha:
-                    linhas_texto.append(texto_linha)
-
-        texto_completo = "\n".join(linhas_texto)
-
-        # 3. Quebra por Lotes
+        # --- PROCESSO PADRÃO DE MINERAÇÃO DE LOTES ---
         padrao_divisao = r'(?=Lote\s*(?:N[°º\.o]*)?\s*:?\s*\d+)'
         blocos_lotes = re.split(padrao_divisao, texto_completo, flags=re.IGNORECASE)
 
@@ -50,7 +64,7 @@ def upload_file():
             match_lote = re.search(r'Lote\s*(?:N[°º\.o]*)?\s*:?\s*(\d+)', bloco, re.IGNORECASE)
             num_lote = match_lote.group(1) if match_lote else "S/N"
 
-            # Captura todos os valores em formato de moeda (ex: 480,00 ou 1.950,00)
+            # Captura todos os valores em formato de moeda
             padrao_moeda = r'\d{1,3}(?:\.\d{3})*,\d{2}'
             todos_valores = re.findall(padrao_moeda, bloco)
 
@@ -58,24 +72,22 @@ def upload_file():
             preco_avaliado = "Não encontrado"
             valor_av_bruto = None
 
-            # --- CAPTURA PREÇO AVALIADO ---
+            # Captura preço Avaliado
             match_av = re.search(r'Avaliado[\s\S]{0,30}?(\d{1,3}(?:\.\d{3})*,\d{2})', bloco, re.IGNORECASE)
             if match_av:
                 valor_av_bruto = match_av.group(1)
                 preco_avaliado = f"R$ {valor_av_bruto}"
 
-            # --- CAPTURA PREÇO MÍNIMO ---
-            # Se a palavra Mínimo tiver o valor grudado (como no Lote 2)
+            # Captura preço Mínimo (Estratégia dupla)
             match_min_direto = re.search(r'Mínimo[\s\S]{0,15}?(\d{1,3}(?:\.\d{3})*,\d{2})', bloco, re.IGNORECASE)
             if match_min_direto:
                 preco_minimo = f"R$ {match_min_direto.group(1)}"
             elif todos_valores:
-                # Se o valor foi jogado pro fim da linha (como no Lote 1)
                 valores_filtrados = [v for v in todos_valores if v != valor_av_bruto]
                 if valores_filtrados:
                     preco_minimo = f"R$ {valores_filtrados[-1]}"
 
-            # --- LIMPEZA DA DESCRIÇÃO ---
+            # Limpeza da descrição
             desc = re.sub(r'Lote\s*(?:N[°º\.o]*)?\s*:?\s*\d+', '', bloco, flags=re.IGNORECASE)
             desc = re.sub(r'Preço Mínimo\(R\$\):?', '', desc, flags=re.IGNORECASE)
             desc = re.sub(r'Avaliado em\(R\$\):?', '', desc, flags=re.IGNORECASE)
@@ -90,7 +102,6 @@ def upload_file():
             if not desc or desc.lower() == 'un':
                 desc = "Ver edital completo."
 
-            # AGORA O PYTHON ENVIA ESSES 4 NOMES EXATOS:
             lotes_processados.append({
                 "lote": num_lote,
                 "preco_minimo": preco_minimo,
