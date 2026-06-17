@@ -3,7 +3,7 @@ import re
 import io
 from flask import Flask, render_template, request, jsonify
 from docx import Document
-import pdfplumber
+from pypdf import PdfReader
 
 app = Flask(__name__)
 
@@ -26,23 +26,24 @@ def upload_file():
     try:
         # --- SE O USUÁRIO ENVIAR UM PDF ---
         if nome_arquivo.endswith('.pdf'):
-            # 1. Cria um arquivo Word virtual na memória do servidor
+            # Cria o documento Word virtual de forma ultra leve
             doc_virtual = Document()
             
-            # 2. Abre o PDF e extrai o texto de forma bruta, página por página
-            with pdfplumber.open(file) as pdf:
-                for pagina in pdf.pages:
-                    texto_pag = pagina.extract_text()
-                    if texto_pag:
-                        # 3. Escreve o texto extraído dentro do nosso Word virtual
-                        doc_virtual.add_paragraph(texto_pag)
+            # Usando PdfReader que é extremamente rápido e consome pouca memória
+            leitor_pdf = PdfReader(file)
             
-            # 4. Salva o Word virtual em um buffer de memória
+            # Extrai o texto de forma contínua para não estourar o servidor
+            for pagina in leitor_pdf.pages:
+                texto_pag = pagina.extract_text()
+                if texto_pag:
+                    # Adiciona o parágrafo diretamente no Word temporário
+                    doc_virtual.add_paragraph(texto_pag)
+            
+            # Salva no buffer de memória
             word_em_memoria = io.BytesIO()
             doc_virtual.save(word_em_memoria)
             word_em_memoria.seek(0)
             
-            # 5. Aponta o arquivo a ser lido para este novo Word que acabamos de criar!
             arquivo_para_ler = Document(word_em_memoria)
 
         # --- SE O USUÁRIO JÁ ENVIAR UM WORD DIRETO ---
@@ -56,12 +57,12 @@ def upload_file():
         # --- DAQUI PRA FRENTE É O PROCESSO PADRÃO DO WORD QUE JÁ FUNCIONA ---
         linhas_texto = []
         
-        # Lê os parágrafos do Word (seja o enviado ou o convertido do PDF)
+        # 1. Lê os parágrafos do Word
         for paragrafo in arquivo_para_ler.paragraphs:
             if paragrafo.text.strip():
                 linhas_texto.append(paragrafo.text)
                 
-        # Lê as tabelas do Word
+        # 2. Lê as tabelas do Word
         for tabela in arquivo_para_ler.tables:
             for linha in tabela.rows:
                 texto_linha = " ".join(c.text.strip() for c in linha.cells if c.text.strip())
@@ -81,12 +82,8 @@ def upload_file():
                 continue
 
             # Captura número do Lote
-            match_lote = re.search(r'Lote\s*(?:N[°º\.o]*)?\s*:?\s*\d+', bloco, re.IGNORECASE)
-            if match_lote:
-                num_lote = re.search(r'\d+', match_lote.group(0))
-                num_lote = num_lote.group(0) if num_lote else "S/N"
-            else:
-                num_lote = "S/N"
+            match_lote = re.search(r'Lote\s*(?:N[°º\.o]*)?\s*:?\s*(\d+)', bloco, re.IGNORECASE)
+            num_lote = match_lote.group(1) if match_lote else "S/N"
 
             # Captura valores em formato de moeda
             padrao_moeda = r'\d{1,3}(?:\.\d{3})*,\d{2}'
@@ -102,7 +99,7 @@ def upload_file():
                 valor_av_bruto = match_av.group(1)
                 preco_avaliado = f"R$ {valor_av_bruto}"
 
-            # Captura preço Mínimo (Estratégia dupla padrão)
+            # Captura preço Mínimo (Estratégia do último valor)
             match_min_direto = re.search(r'Mínimo[\s\S]{0,20}?(\d{1,3}(?:\.\d{3})*,\d{2})', bloco, re.IGNORECASE)
             if match_min_direto:
                 preco_minimo = f"R$ {match_min_direto.group(1)}"
