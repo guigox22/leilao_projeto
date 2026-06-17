@@ -18,26 +18,37 @@ def upload_file():
     if file.filename == '':
         return jsonify({"error": "Arquivo sem nome válido"}), 400
 
+    nome_arquivo = file.filename.lower()
+    texto_completo = ""
+
     try:
-        # Abre o documento Word recebido
-        arquivo_para_ler = Document(file)
-        linhas_texto = []
+        # --- SE O USUÁRIO SUBIR UM TEXTO PURO (.TXT CONVERTIDO DO PDF) ---
+        if nome_arquivo.endswith('.txt'):
+            conteudo_bytes = file.read()
+            # Tenta decodificar o texto em UTF-8 ou ISO-8859-1 para evitar problemas com acentos
+            try:
+                texto_completo = conteudo_bytes.decode('utf-8')
+            except UnicodeDecodeError:
+                texto_completo = conteudo_bytes.decode('iso-8859-1', errors='ignore')
+
+        # --- SE O USUÁRIO SUBIR UM WORD ORIGINAL (.DOCX) ---
+        elif nome_arquivo.endswith('.docx'):
+            doc = Document(file)
+            linhas_texto = []
+            for paragrafo in doc.paragraphs:
+                if paragrafo.text.strip():
+                    linhas_texto.append(paragrafo.text)
+            for tabela in doc.tables:
+                for linha in tabela.rows:
+                    texto_linha = " ".join(c.text.strip() for c in linha.cells if c.text.strip())
+                    if texto_linha:
+                        linhas_texto.append(texto_linha)
+            texto_completo = "\n".join(linhas_texto)
         
-        # 1. Extrai parágrafos normais
-        for paragrafo in arquivo_para_ler.paragraphs:
-            if paragrafo.text.strip():
-                linhas_texto.append(paragrafo.text)
-                
-        # 2. Extrai tabelas integradas
-        for tabela in arquivo_para_ler.tables:
-            for linha in tabela.rows:
-                texto_linha = " ".join(c.text.strip() for c in linha.cells if c.text.strip())
-                if texto_linha:
-                    linhas_texto.append(texto_linha)
+        else:
+            return jsonify({"error": "Formato não suportado. Envie .docx ou .txt"}), 400
 
-        texto_completo = "\n".join(linhas_texto)
-
-        # Divisão cirúrgica por Lotes
+        # --- MINERAÇÃO DOS DADOS (IGUAL AO NOSSO PADRÃO PERFEITO) ---
         padrao_divisao = r'(?=Lote\s*(?:N[°º\.o]*)?\s*:?\s*\d+)'
         blocos_lotes = re.split(padrao_divisao, texto_completo, flags=re.IGNORECASE)
 
@@ -65,7 +76,7 @@ def upload_file():
                 valor_av_bruto = match_av.group(1)
                 preco_avaliado = f"R$ {valor_av_bruto}"
 
-            # Captura preço Mínimo (Estratégia dinâmica de duas pontas)
+            # Captura preço Mínimo
             match_min_direto = re.search(r'Mínimo[\s\S]{0,20}?(\d{1,3}(?:\.\d{3})*,\d{2})', bloco, re.IGNORECASE)
             if match_min_direto:
                 preco_minimo = f"R$ {match_min_direto.group(1)}"
@@ -74,7 +85,7 @@ def upload_file():
                 if valores_filtrados:
                     preco_minimo = f"R$ {valores_filtrados[-1]}"
 
-            # Limpeza completa das descrições de eletrônicos
+            # Limpeza completa das descrições
             desc = re.sub(r'Lote\s*(?:N[°º\.o]*)?\s*:?\s*\d+', '', bloco, flags=re.IGNORECASE)
             desc = re.sub(r'Preço Mínimo\(R\$\):?', '', desc, flags=re.IGNORECASE)
             desc = re.sub(r'Avaliado em\(R\$\):?', '', desc, flags=re.IGNORECASE)
@@ -99,7 +110,7 @@ def upload_file():
         return jsonify(lotes_processados)
 
     except Exception as e:
-        return jsonify({"error": f"Erro ao processar o Word enviado: {str(e)}"}), 500
+        return jsonify({"error": f"Erro ao processar o arquivo enviado: {str(e)}"}), 500
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))

@@ -9,11 +9,10 @@
         h1 { color: #1e3a8a; margin-bottom: 5px; text-align: center; }
         .subtitle { color: #666; text-align: center; margin-bottom: 30px; font-size: 15px; }
         
-        /* Layout em duas colunas */
         .painel-duplo { display: flex; gap: 25px; margin-bottom: 30px; }
         .coluna { flex: 1; background: #f8fafc; padding: 20px; border-radius: 8px; border: 1px solid #e2e8f0; }
         .coluna-pdf { border-left: 5px solid #ef4444; }
-        .coluna-word { border-left: 5px solid #2563eb; }
+        .coluna-word { border-left: 5px solid #10b981; }
         
         h2 { font-size: 18px; margin-top: 0; color: #1e3a8a; display: flex; align-items: center; gap: 8px; }
         .box-upload { border: 2px dashed #cbd5e1; padding: 20px; text-align: center; border-radius: 6px; background: white; margin-top: 15px; }
@@ -21,8 +20,8 @@
         button { border: none; padding: 10px 18px; font-size: 14px; font-weight: bold; border-radius: 5px; cursor: pointer; transition: background 0.2s; margin-top: 12px; width: 100%; }
         .btn-pdf { background-color: #ef4444; color: white; }
         .btn-pdf:hover { background-color: #dc2626; }
-        .btn-word { background-color: #2563eb; color: white; }
-        .btn-word:hover { background-color: #1d4ed8; }
+        .btn-word { background-color: #10b981; color: white; }
+        .btn-word:hover { background-color: #059669; }
         .btn-excel { background-color: #16a34a; color: white; width: auto; display: inline-flex; align-items: center; gap: 8px; }
         .btn-excel:hover { background-color: #115e59; }
         .btn-excel:disabled { background-color: #cbd5e1; color: #94a3b8; cursor: not-allowed; }
@@ -45,26 +44,26 @@
 
 <div class="container">
     <h1>📋 Painel Integrado de Editais - Receita Federal</h1>
-    <div class="subtitle">Converta seus PDFs pesados localmente e extraia os dados para Excel sem travar o servidor.</div>
+    <div class="subtitle">Extraia textos de PDFs localmente e mine os dados sem sobrecarregar o servidor.</div>
     
     <div class="painel-duplo">
         
         <div class="coluna coluna-pdf">
-            <h2>Step 1: 📄 Conversor de PDF para Word</h2>
-            <p style="font-size: 13px; color: #64748b; margin: 5px 0 15px 0;">Transforme o edital em PDF em um arquivo .docx compatível instantaneamente.</p>
+            <h2>Step 1: 📄 Conversor de PDF para Texto</h2>
+            <p style="font-size: 13px; color: #64748b; margin: 5px 0 15px 0;">Transforme o edital em PDF em um arquivo de texto limpo instantaneamente.</p>
             <div class="box-upload">
                 <input type="file" id="pdfInput" accept=".pdf" style="width: 100%;">
-                <button class="btn-pdf" onclick="converterPdfParaWord()">🔄 Converter para WORD (.docx)</button>
+                <button class="btn-pdf" onclick="converterPdfParaTexto()">🔄 Converter para TEXTO (.txt)</button>
                 <div id="statusPdf"></div>
             </div>
         </div>
         
         <div class="coluna coluna-word">
-            <h2>Step 2: 📝 Analisador de Editais (.docx)</h2>
-            <p style="font-size: 13px; color: #64748b; margin: 5px 0 15px 0;">Suba o arquivo convertido para rastrear os lotes e valores mínimos.</p>
+            <h2>Step 2: 📝 Analisador de Arquivos (.docx ou .txt)</h2>
+            <p style="font-size: 13px; color: #64748b; margin: 5px 0 15px 0;">Suba o arquivo .txt convertido ou o .docx original para minerar os lotes.</p>
             <div class="box-upload">
-                <input type="file" id="wordInput" accept=".docx" style="width: 100%;">
-                <button class="btn-word" onclick="enviarWord()">⚡ Analisar Edital Word</button>
+                <input type="file" id="fileInput" accept=".docx,.txt" style="width: 100%;">
+                <button class="btn-word" onclick="enviarParaAnalise()">⚡ Analisar Edital</button>
             </div>
         </div>
         
@@ -85,7 +84,7 @@
             </tr>
         </thead>
         <tbody>
-            <tr><td colspan="4" style="text-align:center; color:#94a3b8;">Aguardando o envio do arquivo Word do Step 2...</td></tr>
+            <tr><td colspan="4" style="text-align:center; color:#94a3b8;">Aguardando o envio do arquivo no Step 2...</td></tr>
         </tbody>
     </table>
 </div>
@@ -93,10 +92,8 @@
 <script>
     let dadosLotes = [];
 
-    // ==========================================
-    // MÁGICA 1: CONVERSOR DE PDF PARA WORD LOCAL
-    // ==========================================
-    async function converterPdfParaWord() {
+    // CONVERSÃO DE PDF PARA TXT DIRETO NO NAVEGADOR (100% LEVE)
+    async function converterPdfParaTexto() {
         let pdfInput = document.getElementById("pdfInput");
         let statusPdf = document.getElementById("statusPdf");
         
@@ -106,46 +103,35 @@
         }
         
         let arquivo = pdfInput.files[0];
-        statusPdf.innerHTML = "⏳ Lendo páginas do PDF... Aguarde.";
+        statusPdf.innerHTML = "⏳ Extraindo texto das páginas do PDF...";
         statusPdf.style.color = "#2563eb";
 
         try {
             let arrayBuffer = await arquivo.arrayBuffer();
             let pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-            let textoCompletoDoPdf = "";
+            let textoCompleto = "";
 
-            // Loop ultra veloz no seu navegador para extrair o texto de todas as páginas
             for (let i = 1; i <= pdf.numPages; i++) {
                 let pagina = await pdf.getPage(i);
                 let conteudoTexto = await pagina.getTextContent();
                 let itensTexto = conteudoTexto.items.map(item => item.str).join(" ");
-                textoCompletoDoPdf += itensTexto + "\n\n";
+                textoCompleto += itensTexto + "\n";
                 statusPdf.innerHTML = `⏳ Convertendo: Página ${i} de ${pdf.numPages}...`;
             }
 
-            statusPdf.innerHTML = "📦 Gerando estrutura Word (.docx)...";
-
-            // Monta uma estrutura XML básica que o Word/Wordpad reconhece nativamente como arquivo .docx válido
-            let conteudoWord = `
-                <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
-                <head><title>Edital Convertido</title><style>body { font-family: Arial; white-space: pre-wrap; }</style></head>
-                <body>${textoCompletoDoPdf.replace(/\n/g, '<br>')}</body>
-                </html>
-            `;
-
-            // Transforma em arquivo para download automático
-            let blob = new Blob(['\ufeff' + conteudoWord], { type: 'application/msword' });
+            // Cria o arquivo .txt puro para download sem trapaças de extensão
+            let blob = new Blob([textoCompleto], { type: 'text/plain;charset=utf-8' });
             let url = URL.createObjectURL(blob);
             let a = document.createElement("a");
             
             let nomeOriginal = arquivo.name.replace(".pdf", "");
             a.href = url;
-            a.download = `${nomeOriginal}_CONVERTIDO.docx`;
+            a.download = `${nomeOriginal}_CONVERTED.txt`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
 
-            statusPdf.innerHTML = "✅ Concluído com sucesso! Verifique sua pasta de Downloads.";
+            statusPdf.innerHTML = "✅ Concluído! Arquivo .txt salvo nos seus Downloads.";
             statusPdf.style.color = "#16a34a";
         } catch (erro) {
             statusPdf.innerHTML = "❌ Falha ao converter o PDF localmente.";
@@ -154,25 +140,23 @@
         }
     }
 
-    // ==========================================
-    // PARTE 2: ENVIAR O WORD PARA O SERVIDOR RENDER
-    // ==========================================
-    async function enviarWord() {
-        let wordInput = document.getElementById("wordInput");
+    // ENVIA O TXT OU DOCX PARA O PYTHON PROCESSAR
+    async function enviarParaAnalise() {
+        let fileInput = document.getElementById("fileInput");
         let btnExportar = document.getElementById("btnExportar");
         
-        if(wordInput.files.length === 0) {
-            alert("Por favor, selecione o arquivo Word (.docx) gerado!");
+        if(fileInput.files.length === 0) {
+            alert("Por favor, selecione um arquivo válido (.docx ou .txt)!");
             return;
         }
         
         let tbody = document.querySelector("#resultado tbody");
-        tbody.innerHTML = "<tr><td colspan='4' style='text-align:center; color:#666;'>🔄 O Python está analisando as linhas e minerando os preços... Aguarde.</td></tr>";
+        tbody.innerHTML = "<tr><td colspan='4' style='text-align:center; color:#666;'>🔄 Minerando dados e processando preços... Aguarde.</td></tr>";
         btnExportar.disabled = true;
         dadosLotes = [];
         
         let formData = new FormData();
-        formData.append("file", wordInput.files[0]);
+        formData.append("file", fileInput.files[0]);
         
         try {
             let res = await fetch("/upload", { method: "POST", body: formData });
@@ -187,7 +171,7 @@
             }
             
             if(!Array.isArray(data) || data.length === 0) {
-                tbody.innerHTML = "<tr><td colspan='4' style='text-align:center; color:#666;'>Nenhum lote foi estruturado corretamente. Verifique o Word.</td></tr>";
+                tbody.innerHTML = "<tr><td colspan='4' style='text-align:center; color:#666;'>Nenhum lote foi estruturado corretamente.</td></tr>";
                 return;
             }
             
@@ -196,7 +180,7 @@
             
             data.forEach(item => {
                 let valorMinimo = item.preco_minimo || item.preco || "Não encontrado";
-                let valorAvaliado = item.preco_avaliado || "Não encontrado";
+                let valorAvaliado = item.preco_avaliated || item.preco_avaliado || "Não encontrado";
                 let numLote = item.lote || "S/N";
                 let descricaoLote = item.descricao || "Sem descrição disponível.";
 
@@ -212,9 +196,6 @@
         }
     }
 
-    // ==========================================
-    // EXPORTAÇÃO EXCEL
-    // ==========================================
     function exportarParaExcel() {
         if(dadosLotes.length === 0) return;
 
