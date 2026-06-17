@@ -1,9 +1,7 @@
 import os
 import re
-import io
 from flask import Flask, render_template, request, jsonify
 from docx import Document
-from pypdf import PdfReader
 
 app = Flask(__name__)
 
@@ -20,49 +18,17 @@ def upload_file():
     if file.filename == '':
         return jsonify({"error": "Arquivo sem nome válido"}), 400
 
-    nome_arquivo = file.filename.lower()
-    texto_completo = ""
-
     try:
-        # --- SE O USUÁRIO ENVIAR UM PDF ---
-        if nome_arquivo.endswith('.pdf'):
-            # Cria o documento Word virtual de forma ultra leve
-            doc_virtual = Document()
-            
-            # Usando PdfReader que é extremamente rápido e consome pouca memória
-            leitor_pdf = PdfReader(file)
-            
-            # Extrai o texto de forma contínua para não estourar o servidor
-            for pagina in leitor_pdf.pages:
-                texto_pag = pagina.extract_text()
-                if texto_pag:
-                    # Adiciona o parágrafo diretamente no Word temporário
-                    doc_virtual.add_paragraph(texto_pag)
-            
-            # Salva no buffer de memória
-            word_em_memoria = io.BytesIO()
-            doc_virtual.save(word_em_memoria)
-            word_em_memoria.seek(0)
-            
-            arquivo_para_ler = Document(word_em_memoria)
-
-        # --- SE O USUÁRIO JÁ ENVIAR UM WORD DIRETO ---
-        elif nome_arquivo.endswith('.docx'):
-            arquivo_para_ler = Document(file)
-        
-        else:
-            return jsonify({"error": "Formato não suportado. Envie .docx ou .pdf"}), 400
-
-
-        # --- DAQUI PRA FRENTE É O PROCESSO PADRÃO DO WORD QUE JÁ FUNCIONA ---
+        # Abre o documento Word recebido
+        arquivo_para_ler = Document(file)
         linhas_texto = []
         
-        # 1. Lê os parágrafos do Word
+        # 1. Extrai parágrafos normais
         for paragrafo in arquivo_para_ler.paragraphs:
             if paragrafo.text.strip():
                 linhas_texto.append(paragrafo.text)
                 
-        # 2. Lê as tabelas do Word
+        # 2. Extrai tabelas integradas
         for tabela in arquivo_para_ler.tables:
             for linha in tabela.rows:
                 texto_linha = " ".join(c.text.strip() for c in linha.cells if c.text.strip())
@@ -71,7 +37,7 @@ def upload_file():
 
         texto_completo = "\n".join(linhas_texto)
 
-        # Divisão inteligente por lotes
+        # Divisão cirúrgica por Lotes
         padrao_divisao = r'(?=Lote\s*(?:N[°º\.o]*)?\s*:?\s*\d+)'
         blocos_lotes = re.split(padrao_divisao, texto_completo, flags=re.IGNORECASE)
 
@@ -85,7 +51,7 @@ def upload_file():
             match_lote = re.search(r'Lote\s*(?:N[°º\.o]*)?\s*:?\s*(\d+)', bloco, re.IGNORECASE)
             num_lote = match_lote.group(1) if match_lote else "S/N"
 
-            # Captura valores em formato de moeda
+            # Captura formato de valores em moeda
             padrao_moeda = r'\d{1,3}(?:\.\d{3})*,\d{2}'
             todos_valores = re.findall(padrao_moeda, bloco)
 
@@ -99,7 +65,7 @@ def upload_file():
                 valor_av_bruto = match_av.group(1)
                 preco_avaliado = f"R$ {valor_av_bruto}"
 
-            # Captura preço Mínimo (Estratégia do último valor)
+            # Captura preço Mínimo (Estratégia dinâmica de duas pontas)
             match_min_direto = re.search(r'Mínimo[\s\S]{0,20}?(\d{1,3}(?:\.\d{3})*,\d{2})', bloco, re.IGNORECASE)
             if match_min_direto:
                 preco_minimo = f"R$ {match_min_direto.group(1)}"
@@ -108,7 +74,7 @@ def upload_file():
                 if valores_filtrados:
                     preco_minimo = f"R$ {valores_filtrados[-1]}"
 
-            # Limpeza da descrição
+            # Limpeza completa das descrições de eletrônicos
             desc = re.sub(r'Lote\s*(?:N[°º\.o]*)?\s*:?\s*\d+', '', bloco, flags=re.IGNORECASE)
             desc = re.sub(r'Preço Mínimo\(R\$\):?', '', desc, flags=re.IGNORECASE)
             desc = re.sub(r'Avaliado em\(R\$\):?', '', desc, flags=re.IGNORECASE)
@@ -130,13 +96,10 @@ def upload_file():
                 "descricao": desc
             })
 
-        if not lotes_processados:
-            return jsonify({"error": "Nenhum lote pôde ser estruturado a partir deste arquivo."}), 400
-
         return jsonify(lotes_processados)
 
     except Exception as e:
-        return jsonify({"error": f"Erro na conversão/leitura: {str(e)}"}), 500
+        return jsonify({"error": f"Erro ao processar o Word enviado: {str(e)}"}), 500
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))

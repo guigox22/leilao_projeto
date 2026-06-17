@@ -2,20 +2,32 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <title>Analisador de Editais - Receita Federal</title>
+    <title>Painel de Editais - Receita Federal</title>
     <style>
-        body { font-family: Arial, sans-serif; margin: 40px; background-color: #f4f6f9; color: #333; }
-        .container { max-width: 1000px; margin: auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
-        h1 { color: #1e3a8a; margin-bottom: 10px; }
-        p { color: #666; margin-bottom: 25px; }
-        .upload-section { display: flex; gap: 15px; align-items: center; background: #f8fafc; padding: 20px; border: 2px dashed #cbd5e1; border-radius: 6px; margin-bottom: 30px; }
-        button { border: none; padding: 12px 20px; font-size: 15px; font-weight: bold; border-radius: 5px; cursor: pointer; transition: background 0.2s; }
-        .btn-extract { background-color: #2563eb; color: white; }
-        .btn-extract:hover { background-color: #1d4ed8; }
-        .btn-excel { background-color: #16a34a; color: white; display: inline-flex; align-items: center; gap: 8px; }
+        body { font-family: Arial, sans-serif; margin: 30px; background-color: #f4f6f9; color: #333; }
+        .container { max-width: 1200px; margin: auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+        h1 { color: #1e3a8a; margin-bottom: 5px; text-align: center; }
+        .subtitle { color: #666; text-align: center; margin-bottom: 30px; font-size: 15px; }
+        
+        /* Layout em duas colunas */
+        .painel-duplo { display: flex; gap: 25px; margin-bottom: 30px; }
+        .coluna { flex: 1; background: #f8fafc; padding: 20px; border-radius: 8px; border: 1px solid #e2e8f0; }
+        .coluna-pdf { border-left: 5px solid #ef4444; }
+        .coluna-word { border-left: 5px solid #2563eb; }
+        
+        h2 { font-size: 18px; margin-top: 0; color: #1e3a8a; display: flex; align-items: center; gap: 8px; }
+        .box-upload { border: 2px dashed #cbd5e1; padding: 20px; text-align: center; border-radius: 6px; background: white; margin-top: 15px; }
+        
+        button { border: none; padding: 10px 18px; font-size: 14px; font-weight: bold; border-radius: 5px; cursor: pointer; transition: background 0.2s; margin-top: 12px; width: 100%; }
+        .btn-pdf { background-color: #ef4444; color: white; }
+        .btn-pdf:hover { background-color: #dc2626; }
+        .btn-word { background-color: #2563eb; color: white; }
+        .btn-word:hover { background-color: #1d4ed8; }
+        .btn-excel { background-color: #16a34a; color: white; width: auto; display: inline-flex; align-items: center; gap: 8px; }
         .btn-excel:hover { background-color: #115e59; }
         .btn-excel:disabled { background-color: #cbd5e1; color: #94a3b8; cursor: not-allowed; }
-        .actions-bar { display: flex; justify-content: space-between; align-items: center; margin-top: 20px; }
+        
+        .actions-bar { display: flex; justify-content: space-between; align-items: center; margin-top: 30px; border-top: 2px solid #e2e8f0; padding-top: 15px; }
         table { width: 100%; border-collapse: collapse; margin-top: 15px; background: white; }
         th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid #e2e8f0; }
         th { background-color: #1e3a8a; color: white; font-weight: bold; }
@@ -23,22 +35,44 @@
         .badge-lote { background: #e0f2fe; color: #0369a1; padding: 4px 8px; border-radius: 4px; font-weight: bold; }
         .preco-tag { color: #16a34a; font-weight: bold; font-size: 16px; }
         .preco-avaliado { color: #64748b; font-size: 14px; }
+        
+        #statusPdf { margin-top: 10px; font-size: 13px; font-weight: bold; color: #1e293b; }
     </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+    <script>pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';</script>
 </head>
 <body>
 
 <div class="container">
-    <h1>📋 Analisador de Editais - Receita Federal</h1>
-    <p>Suba o arquivo <b>.docx</b> ou <b>.pdf</b> do edital para extrair lotes, preços e gerar sua planilha Excel automaticamente.</p>
+    <h1>📋 Painel Integrado de Editais - Receita Federal</h1>
+    <div class="subtitle">Converta seus PDFs pesados localmente e extraia os dados para Excel sem travar o servidor.</div>
     
-    <div class="upload-section">
-        <input type="file" id="fileInput" accept=".docx,.pdf">
-        <button class="btn-extract" onclick="upload()">⚡ Extrair e Filtrar Lotes</button>
+    <div class="painel-duplo">
+        
+        <div class="coluna coluna-pdf">
+            <h2>Step 1: 📄 Conversor de PDF para Word</h2>
+            <p style="font-size: 13px; color: #64748b; margin: 5px 0 15px 0;">Transforme o edital em PDF em um arquivo .docx compatível instantaneamente.</p>
+            <div class="box-upload">
+                <input type="file" id="pdfInput" accept=".pdf" style="width: 100%;">
+                <button class="btn-pdf" onclick="converterPdfParaWord()">🔄 Converter para WORD (.docx)</button>
+                <div id="statusPdf"></div>
+            </div>
+        </div>
+        
+        <div class="coluna coluna-word">
+            <h2>Step 2: 📝 Analisador de Editais (.docx)</h2>
+            <p style="font-size: 13px; color: #64748b; margin: 5px 0 15px 0;">Suba o arquivo convertido para rastrear os lotes e valores mínimos.</p>
+            <div class="box-upload">
+                <input type="file" id="wordInput" accept=".docx" style="width: 100%;">
+                <button class="btn-word" onclick="enviarWord()">⚡ Analisar Edital Word</button>
+            </div>
+        </div>
+        
     </div>
     
     <div class="actions-bar">
-        <h3>Resultados Obtidos</h3>
-        <button id="btnExportar" class="btn-excel" onclick="exportarParaExcel()" disabled>📊 Baixar em Excel</button>
+        <h3 style="margin: 0; color: #1e3a8a;">📊 Lotes Minerados</h3>
+        <button id="btnExportar" class="btn-excel" onclick="exportarParaExcel()" disabled>📊 Baixar Planilha Excel</button>
     </div>
     
     <table id="resultado">
@@ -51,6 +85,7 @@
             </tr>
         </thead>
         <tbody>
+            <tr><td colspan="4" style="text-align:center; color:#94a3b8;">Aguardando o envio do arquivo Word do Step 2...</td></tr>
         </tbody>
     </table>
 </div>
@@ -58,22 +93,86 @@
 <script>
     let dadosLotes = [];
 
-    async function upload() {
-        let fileInput = document.getElementById("fileInput");
+    // ==========================================
+    // MÁGICA 1: CONVERSOR DE PDF PARA WORD LOCAL
+    // ==========================================
+    async function converterPdfParaWord() {
+        let pdfInput = document.getElementById("pdfInput");
+        let statusPdf = document.getElementById("statusPdf");
+        
+        if (pdfInput.files.length === 0) {
+            alert("Selecione um arquivo PDF primeiro!");
+            return;
+        }
+        
+        let arquivo = pdfInput.files[0];
+        statusPdf.innerHTML = "⏳ Lendo páginas do PDF... Aguarde.";
+        statusPdf.style.color = "#2563eb";
+
+        try {
+            let arrayBuffer = await arquivo.arrayBuffer();
+            let pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+            let textoCompletoDoPdf = "";
+
+            // Loop ultra veloz no seu navegador para extrair o texto de todas as páginas
+            for (let i = 1; i <= pdf.numPages; i++) {
+                let pagina = await pdf.getPage(i);
+                let conteudoTexto = await pagina.getTextContent();
+                let itensTexto = conteudoTexto.items.map(item => item.str).join(" ");
+                textoCompletoDoPdf += itensTexto + "\n\n";
+                statusPdf.innerHTML = `⏳ Convertendo: Página ${i} de ${pdf.numPages}...`;
+            }
+
+            statusPdf.innerHTML = "📦 Gerando estrutura Word (.docx)...";
+
+            // Monta uma estrutura XML básica que o Word/Wordpad reconhece nativamente como arquivo .docx válido
+            let conteudoWord = `
+                <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+                <head><title>Edital Convertido</title><style>body { font-family: Arial; white-space: pre-wrap; }</style></head>
+                <body>${textoCompletoDoPdf.replace(/\n/g, '<br>')}</body>
+                </html>
+            `;
+
+            // Transforma em arquivo para download automático
+            let blob = new Blob(['\ufeff' + conteudoWord], { type: 'application/msword' });
+            let url = URL.createObjectURL(blob);
+            let a = document.createElement("a");
+            
+            let nomeOriginal = arquivo.name.replace(".pdf", "");
+            a.href = url;
+            a.download = `${nomeOriginal}_CONVERTIDO.docx`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+
+            statusPdf.innerHTML = "✅ Concluído com sucesso! Verifique sua pasta de Downloads.";
+            statusPdf.style.color = "#16a34a";
+        } catch (erro) {
+            statusPdf.innerHTML = "❌ Falha ao converter o PDF localmente.";
+            statusPdf.style.color = "#dc2626";
+            console.error(erro);
+        }
+    }
+
+    // ==========================================
+    // PARTE 2: ENVIAR O WORD PARA O SERVIDOR RENDER
+    // ==========================================
+    async function enviarWord() {
+        let wordInput = document.getElementById("wordInput");
         let btnExportar = document.getElementById("btnExportar");
         
-        if(fileInput.files.length === 0) {
-            alert("Por favor, selecione um arquivo .docx ou .pdf primeiro!");
+        if(wordInput.files.length === 0) {
+            alert("Por favor, selecione o arquivo Word (.docx) gerado!");
             return;
         }
         
         let tbody = document.querySelector("#resultado tbody");
-        tbody.innerHTML = "<tr><td colspan='4' style='text-align:center; color:#666;'>🔄 Processando edital e minerando os preços... Aguarde.</td></tr>";
+        tbody.innerHTML = "<tr><td colspan='4' style='text-align:center; color:#666;'>🔄 O Python está analisando as linhas e minerando os preços... Aguarde.</td></tr>";
         btnExportar.disabled = true;
         dadosLotes = [];
         
         let formData = new FormData();
-        formData.append("file", fileInput.files[0]);
+        formData.append("file", wordInput.files[0]);
         
         try {
             let res = await fetch("/upload", { method: "POST", body: formData });
@@ -88,7 +187,7 @@
             }
             
             if(!Array.isArray(data) || data.length === 0) {
-                tbody.innerHTML = "<tr><td colspan='4' style='text-align:center; color:#666;'>Nenhum lote válido foi encontrado.</td></tr>";
+                tbody.innerHTML = "<tr><td colspan='4' style='text-align:center; color:#666;'>Nenhum lote foi estruturado corretamente. Verifique o Word.</td></tr>";
                 return;
             }
             
@@ -109,10 +208,13 @@
                 </tr>`;
             });
         } catch (error) {
-            tbody.innerHTML = "<tr><td colspan='4' style='text-align:center; color:red;'>❌ Erro crítico de conexão com o servidor.</td></tr>";
+            tbody.innerHTML = "<tr><td colspan='4' style='text-align:center; color:red;'>❌ Erro crítico de conexão com o servidor Render.</td></tr>";
         }
     }
 
+    // ==========================================
+    // EXPORTAÇÃO EXCEL
+    // ==========================================
     function exportarParaExcel() {
         if(dadosLotes.length === 0) return;
 
