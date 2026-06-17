@@ -9,9 +9,14 @@
         h1 { color: #1e3a8a; margin-bottom: 10px; }
         p { color: #666; margin-bottom: 25px; }
         .upload-section { display: flex; gap: 15px; align-items: center; background: #f8fafc; padding: 20px; border: 2px dashed #cbd5e1; border-radius: 6px; margin-bottom: 30px; }
-        button { background-color: #2563eb; color: white; border: none; padding: 12px 20px; font-size: 15px; font-weight: bold; border-radius: 5px; cursor: pointer; transition: background 0.2s; }
-        button:hover { background-color: #1d4ed8; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; background: white; }
+        button { border: none; padding: 12px 20px; font-size: 15px; font-weight: bold; border-radius: 5px; cursor: pointer; transition: background 0.2s; }
+        .btn-extract { background-color: #2563eb; color: white; }
+        .btn-extract:hover { background-color: #1d4ed8; }
+        .btn-excel { background-color: #16a34a; color: white; display: inline-flex; align-items: center; gap: 8px; }
+        .btn-excel:hover { background-color: #115e59; }
+        .btn-excel:disabled { background-color: #cbd5e1; color: #94a3b8; cursor: not-allowed; }
+        .actions-bar { display: flex; justify-content: space-between; align-items: center; margin-top: 20px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; background: white; }
         th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid #e2e8f0; }
         th { background-color: #1e3a8a; color: white; font-weight: bold; }
         tr:hover { background-color: #f8fafc; }
@@ -24,11 +29,16 @@
 
 <div class="container">
     <h1>📋 Analisador de Editais - Receita Federal</h1>
-    <p>Suba o arquivo <b>.docx</b> do edital para extrair instantaneamente lotes, preços e descrições de eletrônicos.</p>
+    <p>Suba o arquivo <b>.docx</b> do edital para extrair lotes, preços e gerar sua planilha Excel automaticamente.</p>
     
     <div class="upload-section">
         <input type="file" id="fileInput" accept=".docx">
-        <button onclick="upload()">⚡ Extrair e Filtrar Lotes</button>
+        <button class="btn-extract" onclick="upload()">⚡ Extrair e Filtrar Lotes</button>
+    </div>
+    
+    <div class="actions-bar">
+        <h3>Resultados Obtidos</h3>
+        <button id="btnExportar" class="btn-excel" onclick="exportarParaExcel()" disabled>📊 Baixar em Excel</button>
     </div>
     
     <table id="resultado">
@@ -46,8 +56,13 @@
 </div>
 
 <script>
+    // Variável global para guardar os dados e usá-los na exportação
+    let dadosLotes = [];
+
     async function upload() {
         let fileInput = document.getElementById("fileInput");
+        let btnExportar = document.getElementById("btnExportar");
+        
         if(fileInput.files.length === 0) {
             alert("Por favor, selecione um arquivo .docx primeiro!");
             return;
@@ -55,6 +70,8 @@
         
         let tbody = document.querySelector("#resultado tbody");
         tbody.innerHTML = "<tr><td colspan='4' style='text-align:center; color:#666;'>🔄 Processando edital e minerando os preços... Aguarde.</td></tr>";
+        btnExportar.disabled = true;
+        dadosLotes = [];
         
         let formData = new FormData();
         formData.append("file", fileInput.files[0]);
@@ -72,12 +89,15 @@
             }
             
             if(!Array.isArray(data) || data.length === 0) {
-                tbody.innerHTML = "<tr><td colspan='4' style='text-align:center; color:#666;'>Nenhum lote contendo eletrônicos de interesse foi encontrado.</td></tr>";
+                tbody.innerHTML = "<tr><td colspan='4' style='text-align:center; color:#666;'>Nenhum lote válido foi encontrado.</td></tr>";
                 return;
             }
             
+            // Salva os dados globalmente para o Excel usar
+            dadosLotes = data;
+            btnExportar.disabled = false; // Ativa o botão do Excel!
+            
             data.forEach(item => {
-                // TRAVA ANTIBUG: Se o Python mandar como 'preco_minimo' ou 'preco', o JS aceita sem dar undefined!
                 let valorMinimo = item.preco_minimo || item.preco || "Não encontrado";
                 let valorAvaliado = item.preco_avaliado || "Não encontrado";
                 let numLote = item.lote || "S/N";
@@ -93,6 +113,55 @@
         } catch (error) {
             tbody.innerHTML = "<tr><td colspan='4' style='text-align:center; color:red;'>❌ Erro crítico de conexão com o servidor.</td></tr>";
         }
+    }
+
+    // Função mágica que gera o arquivo do Excel direto no navegador
+    function exportarParaExcel() {
+        if(dadosLotes.length === 0) return;
+
+        // Monta a estrutura da tabela em formato XML/HTML que o Excel entende nativamente (com acentuação correta)
+        let htmlExcel = `
+            <meta charset="utf-8">
+            <table border="1">
+                <tr style="background-color: #1e3a8a; color: white; font-weight: bold;">
+                    <th>Lote</th>
+                    <th>Preco Minimo</th>
+                    <th>Preco Avaliado</th>
+                    <th>Descricao dos Produtos</th>
+                </tr>
+        `;
+
+        dadosLotes.forEach(item => {
+            let valorMinimo = item.preco_minimo || item.preco || "Não encontrado";
+            let valorAvaliado = item.preco_avaliado || "Não encontrado";
+            let numLote = item.lote || "S/N";
+            let descricaoLote = item.descricao || "Sem descrição disponível.";
+
+            htmlExcel += `
+                <tr>
+                    <td>Lote ${numLote}</td>
+                    <td>${valorMinimo}</td>
+                    <td>${valorAvaliado}</td>
+                    <td>${descricaoLote}</td>
+                </tr>
+            `;
+        });
+
+        htmlExcel += "</table>";
+
+        // Cria o link invisível de download
+        let blob = new Blob([htmlExcel], { type: "application/vnd.ms-excel" });
+        let url = URL.createObjectURL(blob);
+        let a = document.createElement("a");
+        
+        // Define o nome do arquivo com a data atual
+        let dataAtual = new Date().toLocaleDateString('pt-BR').replace(/\//g, '-');
+        a.href = url;
+        a.download = `Lotes_Receita_Federal_${dataAtual}.xls`;
+        
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
     }
 </script>
 
