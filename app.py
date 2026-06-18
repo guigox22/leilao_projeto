@@ -4,11 +4,12 @@ import io
 from flask import Flask, render_template, request, jsonify
 
 app = Flask(__name__)
+app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024  # 100 MB
 
 # ─── EXTRAÇÃO DE TEXTO ───────────────────────────────────────────────────────
 
 def extract_text(file_storage):
-    """Extrai texto de PDF, DOCX ou TXT."""
+    """Extrai texto de PDF, DOCX ou TXT. Suporta PDFs grandes."""
     name = (file_storage.filename or '').lower()
     data = file_storage.read()
 
@@ -17,10 +18,13 @@ def extract_text(file_storage):
             import pdfplumber
             pages = []
             with pdfplumber.open(io.BytesIO(data)) as pdf:
-                for page in pdf.pages:
-                    txt = page.extract_text()
-                    if txt:
-                        pages.append(txt)
+                for i, page in enumerate(pdf.pages):
+                    try:
+                        txt = page.extract_text()
+                        if txt:
+                            pages.append(txt)
+                    except Exception:
+                        continue  # pula pagina com problema
             return '\n'.join(pages)
         except Exception as e:
             return ''
@@ -250,4 +254,5 @@ def upload_historico():
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
-    app.run(host='0.0.0.0', port=port, debug=False)
+    # use_reloader=False evita duplo processo; threaded=True permite multiplas requests
+    app.run(host='0.0.0.0', port=port, debug=False, threaded=True, use_reloader=False)
