@@ -106,42 +106,41 @@ def parse_lances(text):
     """
     Extrai valores de arrematação do relatório de Propostas e Lances.
 
-    Estrutura real do PDF:
-        Arrematante: licitante4
-        Valor de Arrematação
-        Lote: 1
-        41.000,00          <-- valor logo após o número do lote
-        Estado do Lote: Encerrado
+    Estrutura real extraída pelo pdfplumber:
+        'Lote: 1 Estado do Lote: Encerrado'
+        'Arrematante: licitante4'
+        'Valor de Arrematação 41.000,00'   <- valor NA MESMA LINHA
 
-        Arrematante:
-        Valor de Arrematação
-        Lote: 5
-        -                  <-- traço = não arrematado
-        Estado do Lote: Lote Não Arrematado
+        'Lote: 5 Estado do Lote: Lote Não Arrematado'
+        'Arrematante:'
+        'Valor de Arrematação -'           <- traço = não arrematado
 
     Retorna dict: { '1': 'R$ 41.000,00', '5': 'Não arrematado', ... }
     """
     mapa = {}
 
-    # Captura "Lote: X" seguido imediatamente de valor ou "-"
+    # Padrao: "Lote: X ...\nArrematante: ...\nValor de Arrematacao VALUE|-"
+    # O valor esta sempre na linha "Valor de Arrematacao", nao apos o numero do lote
     matches = re.findall(
-        r'Lote\s*:\s*(\d+)\s*[\r\n]+\s*([\d\.]+,\d{2}|-)',
-        text
+        r'Lote\s*:\s*(\d+)[^\n]*\n[^\n]*\nValor\s+de\s+Arrematação\s+([\d\.]+,\d{2}|-)',
+        text, re.IGNORECASE
     )
 
     for num, valor in matches:
         key = str(int(num))
         mapa[key] = 'Não arrematado' if valor.strip() == '-' else f'R$ {valor}'
 
-    # Fallback: qualquer lote marcado explicitamente como "Não Arrematado"
-    nao_arr = re.findall(
-        r'Lote\s*:\s*(\d+)[\s\S]{0,150}?Lote\s+Não\s+Arrematado',
-        text, re.IGNORECASE
-    )
-    for num in nao_arr:
-        key = str(int(num))
-        if key not in mapa:
-            mapa[key] = 'Não arrematado'
+    # Fallback: busca direta "Valor de Arrematação VALUE" para casos onde
+    # há variação no número de linhas entre Lote e Valor
+    if not mapa:
+        all_vals = re.findall(
+            r'Valor\s+de\s+Arrematação\s+([\d\.]+,\d{2}|-)',
+            text, re.IGNORECASE
+        )
+        all_lotes = re.findall(r'Lote\s*:\s*(\d+)', text, re.IGNORECASE)
+        for i, (lote, val) in enumerate(zip(all_lotes, all_vals)):
+            key = str(int(lote))
+            mapa[key] = 'Não arrematado' if val.strip() == '-' else f'R$ {val}'
 
     return mapa
 
