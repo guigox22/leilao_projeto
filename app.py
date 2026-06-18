@@ -9,7 +9,7 @@ app = Flask(__name__)
 def index():
     return render_template('index.html')
 
-# Função auxiliar para limpar e extrair os lotes do arquivo de texto de Relação de Lotes
+# Função padrão para extrair os lotes e dados do arquivo de Relação de Lotes
 def extrair_lotes_da_relacao(texto):
     padrao_divisao = r'(?=Lote\s*(?:N[°º\.o]*)?\s*:?\s*\d+)'
     blocos = re.split(padrao_divisao, texto, flags=re.IGNORECASE)
@@ -19,10 +19,11 @@ def extrair_lotes_da_relacao(texto):
         if not bloco.strip() or "lote" not in bloco.lower():
             continue
 
+        # Captura o número do lote limpando espaços
         match_lote = re.search(r'Lote\s*(?:N[°º\.o]*)?\s*:?\s*(\d+)', bloco, re.IGNORECASE)
-        num_lote = match_lote.group(1) if match_lote else None
-        if not num_lote:
+        if not match_lote:
             continue
+        num_lote = match_lote.group(1).strip()
 
         padrao_moeda = r'\d{1,3}(?:\.\d{3})*,\d{2}'
         todos_valores = re.findall(padrao_moeda, bloco)
@@ -44,6 +45,7 @@ def extrair_lotes_da_relacao(texto):
             if valores_filtrados:
                 preco_minimo = f"R$ {valores_filtrados[-1]}"
 
+        # Limpeza da descrição
         desc = re.sub(r'Lote\s*(?:N[°º\.o]*)?\s*:?\s*\d+', '', bloco, flags=re.IGNORECASE)
         desc = re.sub(r'Preço Mínimo\(R\$\):?', '', desc, flags=re.IGNORECASE)
         desc = re.sub(r'Avaliado em\(R\$\):?', '', desc, flags=re.IGNORECASE)
@@ -63,7 +65,7 @@ def extrair_lotes_da_relacao(texto):
         }
     return lotes_mapeados
 
-# --- ROTA 1: PROCESSAMENTO DO EDITAL ATUAL ---
+# --- ROTA 1: PROCESSAMENTO DO EDITAL ATUAL (MANTIDA) ---
 @app.route('/upload', methods=['POST'])
 def upload_file():
     if 'file' not in request.files:
@@ -77,11 +79,7 @@ def upload_file():
 
     try:
         if nome_arquivo.endswith('.txt'):
-            conteudo_bytes = file.read()
-            try:
-                texto_completo = conteudo_bytes.decode('utf-8')
-            except UnicodeDecodeError:
-                texto_completo = conteudo_bytes.decode('iso-8859-1', errors='ignore')
+            texto_completo = file.read().decode('utf-8', errors='ignore')
         elif nome_arquivo.endswith('.docx'):
             doc = Document(file)
             linhas_texto = []
@@ -93,20 +91,17 @@ def upload_file():
                     if texto_linha: linhas_texto.append(texto_linha)
             texto_completo = "\n".join(linhas_texto)
         else:
-            return jsonify({"error": "Formato inválido. Use .docx ou .txt"}), 400
+            return jsonify({"error": "Formato inválido."}), 400
 
         mapa_lotes = extrair_lotes_da_relacao(texto_completo)
-        resultado = []
-        for k, v in mapa_lotes.items():
-            resultado.append({"lote": k, **v})
-        
-        # Ordena numericamente pelo lote
+        resultado = [{"lote": k, **v} for k, v in mapa_lotes.items()]
         resultado.sort(key=lambda x: int(x['lote']) if x['lote'].isdigit() else 999)
         return jsonify(resultado)
     except Exception as e:
-        return jsonify({"error": f"Erro interno: {str(e)}"}), 500
+        return jsonify({"error": str(e)}), 500
 
-# --- ROTA 2: CRUZADOR DE DADOS HISTÓRICOS (NOVA ABA) ---
+
+# --- ROTA 2: NOVO CRUZADOR REVERSO (SUA SUGESTÃO) ---
 @app.route('/upload_historico', methods=['POST'])
 def upload_historico():
     if 'file_relacao' not in request.files or 'file_lances' not in request.files:
@@ -116,62 +111,60 @@ def upload_historico():
     f_lances = request.files['file_lances']
     
     try:
-        # Lê e decodifica o arquivo de Relação de Lotes
         txt_relacao = f_relacao.read().decode('utf-8', errors='ignore')
-        # Lê e decodifica o arquivo de Propostas e Lances
         txt_lances = f_lances.read().decode('utf-8', errors='ignore')
         
-        # 1. Mapeia preços e descrições dos lotes
+        # 1. Puxa todas as informações base da Relação de Lotes (Lote, Mínimo, Avaliado, Descrição)
         mapa_relacao = extrair_lotes_da_relacao(txt_relacao)
         
-        # 2. Varre o arquivo de Lances para encontrar o valor de arrematação de cada lote
-        # Os blocos no arquivo de lances começam com "Lote: X"
-        blocos_lances = re.split(r'(?=Lote\s*:\s*\d+)', txt_lances, flags=re.IGNORECASE)
+        # 2. Divide o arquivo de Lances em blocos baseados em "Lote : X" ou "Lote X" para não misturar valores
+        blocos_lances = re.split(r'(?=Lote\s*(?:N[°º\.o]*)?\s*:?\s*\d+)', txt_lances, flags=re.IGNORECASE)
         
         mapa_arrematacoes = {}
         for bloco in blocos_lances:
             if not bloco.strip() or "lote" not in bloco.lower():
                 continue
-                
-            # Captura número do lote
-            match_num = re.search(r'Lote\s*:\s*(\d+)', bloco, re.IGNORECASE)
+            
+            # Encontra qual é o lote deste bloco de lances
+            match_num = re.search(r'Lote\s*(?:N[°º\.o]*)?\s*:?\s*(\d+)', bloco, re.IGNORECASE)
             if not match_num:
                 continue
-            num_lote = match_num.group(1)
+            num_lote_lance = match_num.group(1).strip()
             
-            # Procura pelo Valor de Arrematação dentro desse bloco de lances
-            match_valor = re.search(r'Valor\s+de\s+Arrematação\s*[:\s]?\s*(\d{1,3}(?:\.\d{3})*,\d{2})', bloco, re.IGNORECASE)
+            # Pega o valor de Arrematação desse bloco específico
+            match_valor = re.search(r'Valor\s+de\s+Arrematação[\s\S]{0,40}?(\d{1,3}(?:\.\d{3})*,\d{2})', bloco, re.IGNORECASE)
             
             if match_valor:
-                mapa_arrematacoes[num_lote] = f"R$ {match_valor.group(1)}"
+                mapa_arrematacoes[num_lote_lance] = f"R$ {match_valor.group(1)}"
             else:
-                mapa_arrematacoes[num_lote] = "Não arrematado / Sem lances"
-                
-        # 3. Une os dados cruzando pelo número do Lote
+                mapa_arrematacoes[num_lote_lance] = "Não arrematado"
+
+        # 3. SINCRONIZAÇÃO: Percorre a Relação de Lotes e injeta o valor de arrematação encontrado
         historico_consolidado = []
         
-        # Percorre todos os lotes que têm registro de lances/arrematação
-        for num_lote, valor_arrematado in mapa_arrematacoes.items():
-            # Puxa a descrição do lote se ele existir na relação de lotes, senão deixa padrão
-            dados_lote = mapa_relacao.get(num_lote, {
-                "preco_minimo": "Não cadastrado",
-                "preco_avaliado": "Não cadastrado",
-                "descricao": "Descrição não encontrada no arquivo de relação."
-            })
+        for num_lote, dados in mapa_relacao.items():
+            # Tenta buscar a arrematação correspondente ao número do lote
+            valor_final = mapa_arrematacoes.get(num_lote, "Não encontrado")
             
+            # Se não achou com o número puro, tenta tirando zeros à esquerda (ex: "01" vira "1")
+            if valor_final == "Não encontrado":
+                lote_limpo = str(int(num_lote)) if num_lote.isdigit() else num_lote
+                valor_final = mapa_arrematacoes.get(lote_limpo, "Não encontrado")
+
             historico_consolidado.append({
                 "lote": num_lote,
-                "valor_arrematado": valor_arrematado,
-                **dados_lote
+                "valor_arrematado": valor_final,
+                "preco_minimo": dados["preco_minimo"],
+                "preco_avaliado": dados["preco_avaliado"],
+                "descricao": dados["descricao"]
             })
             
-        # Ordena a resposta por lote numericamente
+        # Ordena o resultado final pelo número do lote de forma correta
         historico_consolidado.sort(key=lambda x: int(x['lote']) if x['lote'].isdigit() else 999)
-        
         return jsonify(historico_consolidado)
         
     except Exception as e:
-        return jsonify({"error": f"Erro ao cruzar o histórico: {str(e)}"}), 500
+        return jsonify({"error": f"Erro no cruzamento: {str(e)}"}), 500
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
