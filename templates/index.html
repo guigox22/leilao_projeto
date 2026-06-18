@@ -2,26 +2,40 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <title>Painel de Editais - Receita Federal</title>
+    <title>Painel Avançado de Editais - Receita Federal</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 30px; background-color: #f4f6f9; color: #333; }
         .container { max-width: 1200px; margin: auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
         h1 { color: #1e3a8a; margin-bottom: 5px; text-align: center; }
-        .subtitle { color: #666; text-align: center; margin-bottom: 30px; font-size: 15px; }
+        .subtitle { color: #666; text-align: center; margin-bottom: 25px; font-size: 15px; }
         
+        /* Sistema de Abas */
+        .abas-menu { display: flex; gap: 10px; border-bottom: 2px solid #e2e8f0; margin-bottom: 25px; }
+        .aba-btn { background: #e2e8f0; color: #475569; border: none; padding: 12px 25px; font-size: 15px; font-weight: bold; border-radius: 6px 6px 0 0; cursor: pointer; transition: all 0.2s; margin-bottom: -2px; }
+        .aba-btn.ativa { background: #1e3a8a; color: white; border-bottom: 2px solid #1e3a8a; }
+        .aba-conteudo { display: none; }
+        .aba-conteudo.ativa { display: block; }
+
+        /* Layout */
         .painel-duplo { display: flex; gap: 25px; margin-bottom: 30px; }
         .coluna { flex: 1; background: #f8fafc; padding: 20px; border-radius: 8px; border: 1px solid #e2e8f0; }
         .coluna-pdf { border-left: 5px solid #ef4444; }
         .coluna-word { border-left: 5px solid #10b981; }
+        .coluna-roxo { border-left: 5px solid #8b5cf6; }
         
         h2 { font-size: 18px; margin-top: 0; color: #1e3a8a; display: flex; align-items: center; gap: 8px; }
-        .box-upload { border: 2px dashed #cbd5e1; padding: 20px; text-align: center; border-radius: 6px; background: white; margin-top: 15px; }
-        
-        button { border: none; padding: 10px 18px; font-size: 14px; font-weight: bold; border-radius: 5px; cursor: pointer; transition: background 0.2s; margin-top: 12px; width: 100%; }
+        .box-upload { border: 2px dashed #cbd5e1; padding: 15px; text-align: center; border-radius: 6px; background: white; margin-top: 15px; }
+        label { display: block; font-weight: bold; text-align: left; margin-bottom: 5px; color: #475569; font-size: 13px; }
+        input[type="file"] { margin-bottom: 15px; }
+
+        button { border: none; padding: 10px 18px; font-size: 14px; font-weight: bold; border-radius: 5px; cursor: pointer; transition: background 0.2s; margin-top: 5px; width: 100%; }
         .btn-pdf { background-color: #ef4444; color: white; }
         .btn-pdf:hover { background-color: #dc2626; }
         .btn-word { background-color: #10b981; color: white; }
         .btn-word:hover { background-color: #059669; }
+        .btn-roxo { background-color: #8b5cf6; color: white; }
+        .btn-roxo:hover { background-color: #7c3aed; }
+        
         .btn-excel { background-color: #16a34a; color: white; width: auto; display: inline-flex; align-items: center; gap: 8px; }
         .btn-excel:hover { background-color: #115e59; }
         .btn-excel:disabled { background-color: #cbd5e1; color: #94a3b8; cursor: not-allowed; }
@@ -31,11 +45,11 @@
         th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid #e2e8f0; }
         th { background-color: #1e3a8a; color: white; font-weight: bold; }
         tr:hover { background-color: #f8fafc; }
-        .badge-lote { background: #e0f2fe; color: #0369a1; padding: 4px 8px; border-radius: 4px; font-weight: bold; }
-        .preco-tag { color: #16a34a; font-weight: bold; font-size: 16px; }
-        .preco-avaliado { color: #64748b; font-size: 14px; }
         
-        #statusPdf { margin-top: 10px; font-size: 13px; font-weight: bold; color: #1e293b; }
+        .badge-lote { background: #e0f2fe; color: #0369a1; padding: 4px 8px; border-radius: 4px; font-weight: bold; }
+        .preco-tag { color: #16a34a; font-weight: bold; font-size: 15px; }
+        .preco-arrematado { color: #b91c1c; font-weight: bold; font-size: 16px; }
+        .status-msg { margin-top: 8px; font-size: 13px; font-weight: bold; color: #1e293b; }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
     <script>pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';</script>
@@ -44,67 +58,112 @@
 
 <div class="container">
     <h1>📋 Painel Integrado de Editais - Receita Federal</h1>
-    <div class="subtitle">Extraia textos de PDFs localmente e mine os dados sem sobrecarregar o servidor.</div>
+    <div class="subtitle">Gestão inteligente e mineração de dados para Leilões da Receita Federal.</div>
     
-    <div class="painel-duplo">
-        
-        <div class="coluna coluna-pdf">
-            <h2>Step 1: 📄 Conversor de PDF para Texto</h2>
-            <p style="font-size: 13px; color: #64748b; margin: 5px 0 15px 0;">Transforme o edital em PDF em um arquivo de texto limpo instantaneamente.</p>
-            <div class="box-upload">
-                <input type="file" id="pdfInput" accept=".pdf" style="width: 100%;">
-                <button class="btn-pdf" onclick="converterPdfParaTexto()">🔄 Converter para TEXTO (.txt)</button>
-                <div id="statusPdf"></div>
+    <div class="abas-menu">
+        <button class="aba-btn ativa" onclick="mudarAba('analisador')">⚡ Analisador de Editais Atuais</button>
+        <button class="aba-btn" onclick="mudarAba('historico')">🔍 Pesquisa de Lotes Passados</button>
+    </div>
+    
+    <div id="analisador" class="aba-conteudo ativa">
+        <div class="painel-duplo">
+            <div class="coluna coluna-pdf">
+                <h2>Step 1: 📄 Conversor de PDF para Texto</h2>
+                <p style="font-size: 13px; color: #64748b; margin: 5px 0 15px 0;">Converta o edital atual em PDF para processamento.</p>
+                <div class="box-upload">
+                    <input type="file" id="pdfInputAba1" accept=".pdf" style="width: 100%;">
+                    <button class="btn-pdf" onclick="converterPdfParaTexto('pdfInputAba1', 'statusPdfAba1', '_CONVERTED_ATUAL.txt')">🔄 Converter para TEXTO (.txt)</button>
+                    <div id="statusPdfAba1" class="status-msg"></div>
+                </div>
+            </div>
+            <div class="coluna coluna-word">
+                <h2>Step 2: 📝 Analisador (.docx ou .txt)</h2>
+                <p style="font-size: 13px; color: #64748b; margin: 5px 0 15px 0;">Suba o arquivo para extrair lotes e valores mínimos/avaliados.</p>
+                <div class="box-upload">
+                    <input type="file" id="fileInputAba1" accept=".docx,.txt" style="width: 100%;">
+                    <button class="btn-word" onclick="enviarParaAnalise('/upload', 'fileInputAba1', 'tabelaAtual')">⚡ Analisar Edital</button>
+                </div>
             </div>
         </div>
         
-        <div class="coluna coluna-word">
-            <h2>Step 2: 📝 Analisador de Arquivos (.docx ou .txt)</h2>
-            <p style="font-size: 13px; color: #64748b; margin: 5px 0 15px 0;">Suba o arquivo .txt convertido ou o .docx original para minerar os lotes.</p>
-            <div class="box-upload">
-                <input type="file" id="fileInput" accept=".docx,.txt" style="width: 100%;">
-                <button class="btn-word" onclick="enviarParaAnalise()">⚡ Analisar Edital</button>
+        <div class="actions-bar">
+            <h3 style="margin: 0; color: #1e3a8a;">📊 Lotes Minerados (Edital Atual)</h3>
+            <button id="btnExportarAtual" class="btn-excel" onclick="exportarExcel('tabelaAtual', 'Lotes_Edital_Atual')" disabled>📊 Baixar Planilha Excel</button>
+        </div>
+        <table id="tabelaAtual">
+            <thead>
+                <tr><th style="width: 10%;">Lote</th><th style="width: 20%;">Preço Mínimo</th><th style="width: 20%;">Preço Avaliado</th><th style="width: 50%;">Descrição dos Produtos</th></tr>
+            </thead>
+            <tbody><tr><td colspan="4" style="text-align:center; color:#94a3b8;">Aguardando envio do arquivo...</td></tr></tbody>
+        </table>
+    </div>
+
+    <div id="historico" class="aba-conteudo">
+        <div class="painel-duplo">
+            <div class="coluna coluna-pdf">
+                <h2>Step 1: 📄 Conversor de Históricos</h2>
+                <p style="font-size: 13px; color: #64748b; margin: 5px 0 15px 0;">Converta individualmente os PDFs antigos antes de analisá-los.</p>
+                <div class="box-upload">
+                    <input type="file" id="pdfInputAba2" accept=".pdf" style="width: 100%;">
+                    <button class="btn-pdf" onclick="converterPdfParaTexto('pdfInputAba2', 'statusPdfAba2', '_HISTORICO_CONVERTED.txt')">🔄 Converter para TEXTO (.txt)</button>
+                    <div id="statusPdfAba2" class="status-msg"></div>
+                </div>
+            </div>
+            <div class="coluna coluna-roxo">
+                <h2>Step 2: 🔍 Cruzador de Dados Históricos</h2>
+                <p style="font-size: 13px; color: #64748b; margin: 5px 0 15px 0;">Suba os dois arquivos convertidos em .txt para cruzar descrições e arrematações.</p>
+                <div class="box-upload">
+                    <label>1. Arquivo Relação de Lotes (.txt):</label>
+                    <input type="file" id="histRelacaoInput" accept=".txt" style="width: 100%;">
+                    
+                    <label>2. Arquivo Propostas e Lances (.txt):</label>
+                    <input type="file" id="histLancesInput" accept=".txt" style="width: 100%;">
+                    
+                    <button class="btn-roxo" onclick="enviarHistorico()">🧠 Cruzar e Gerar Histórico</button>
+                </div>
             </div>
         </div>
-        
+
+        <div class="actions-bar">
+            <h3 style="margin: 0; color: #8b5cf6;">📊 Relatório Comparativo de Lotes Arrematados</h3>
+            <button id="btnExportarHist" class="btn-excel" onclick="exportarExcel('tabelaHist', 'Historico_Lotes_Arrematados')" disabled>📊 Baixar Relatório Histórico</button>
+        </div>
+        <table id="tabelaHist">
+            <thead>
+                <tr>
+                    <th style="width: 8%;">Lote</th>
+                    <th style="width: 17%;">Valor Arrematado</th>
+                    <th style="width: 15%;">Preço Mínimo</th>
+                    <th style="width: 15%;">Preço Avaliado</th>
+                    <th style="width: 45%;">Descrição do que Havia no Lote</th>
+                </tr>
+            </thead>
+            <tbody><tr><td colspan="5" style="text-align:center; color:#94a3b8;">Suba os arquivos .txt do Step 2 para cruzar o relatório histórico.</td></tr></tbody>
+        </table>
     </div>
-    
-    <div class="actions-bar">
-        <h3 style="margin: 0; color: #1e3a8a;">📊 Lotes Minerados</h3>
-        <button id="btnExportar" class="btn-excel" onclick="exportarParaExcel()" disabled>📊 Baixar Planilha Excel</button>
-    </div>
-    
-    <table id="resultado">
-        <thead>
-            <tr>
-                <th style="width: 10%;">Lote</th>
-                <th style="width: 20%;">Preço Mínimo</th>
-                <th style="width: 20%;">Preço Avaliado</th>
-                <th style="width: 50%;">Descrição dos Produtos</th>
-            </tr>
-        </thead>
-        <tbody>
-            <tr><td colspan="4" style="text-align:center; color:#94a3b8;">Aguardando o envio do arquivo no Step 2...</td></tr>
-        </tbody>
-    </table>
 </div>
 
 <script>
-    let dadosLotes = [];
+    let dadosGlobais = { tabelaAtual: [], tabelaHist: [] };
 
-    // CONVERSÃO DE PDF PARA TXT DIRETO NO NAVEGADOR (100% LEVE)
-    async function converterPdfParaTexto() {
-        let pdfInput = document.getElementById("pdfInput");
-        let statusPdf = document.getElementById("statusPdf");
+    // Controla a troca de abas na tela
+    function mudarAba(idAba) {
+        document.querySelectorAll('.aba-btn').forEach(btn => btn.classList.remove('ativa'));
+        document.querySelectorAll('.aba-conteudo').forEach(cont => cont.classList.remove('ativa'));
         
-        if (pdfInput.files.length === 0) {
-            alert("Selecione um arquivo PDF primeiro!");
-            return;
-        }
+        event.target.classList.add('ativa');
+        document.getElementById(idAba).classList.add('ativa');
+    }
+
+    // Função universal de conversão de PDF para TXT local
+    async function converterPdfParaTexto(inputId, statusId, sufixoNome) {
+        let input = document.getElementById(inputId);
+        let status = document.getElementById(statusId);
+        if (input.files.length === 0) { alert("Selecione um arquivo PDF primeiro!"); return; }
         
-        let arquivo = pdfInput.files[0];
-        statusPdf.innerHTML = "⏳ Extraindo texto das páginas do PDF...";
-        statusPdf.style.color = "#2563eb";
+        let arquivo = input.files[0];
+        status.innerHTML = "⏳ Extraindo texto do PDF...";
+        status.style.color = "#2563eb";
 
         try {
             let arrayBuffer = await arquivo.arrayBuffer();
@@ -115,127 +174,133 @@
                 let pagina = await pdf.getPage(i);
                 let conteudoTexto = await pagina.getTextContent();
                 let itensTexto = conteudoTexto.items.map(item => item.str).join(" ");
-                textoCompleto += itensTexto + "\n";
-                statusPdf.innerHTML = `⏳ Convertendo: Página ${i} de ${pdf.numPages}...`;
+                textoCompleto += `--- PAGE ${i} ---\n` + itensTexto + "\n\n";
+                status.innerHTML = `⏳ Convertendo: Página ${i} de ${pdf.numPages}...`;
             }
 
-            // Cria o arquivo .txt puro para download sem trapaças de extensão
             let blob = new Blob([textoCompleto], { type: 'text/plain;charset=utf-8' });
             let url = URL.createObjectURL(blob);
             let a = document.createElement("a");
-            
-            let nomeOriginal = arquivo.name.replace(".pdf", "");
             a.href = url;
-            a.download = `${nomeOriginal}_CONVERTED.txt`;
+            a.download = arquivo.name.replace(".pdf", "") + sufixoNome;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
 
-            statusPdf.innerHTML = "✅ Concluído! Arquivo .txt salvo nos seus Downloads.";
-            statusPdf.style.color = "#16a34a";
+            status.innerHTML = "✅ Concluído! Arquivo salvo em Downloads.";
+            status.style.color = "#16a34a";
         } catch (erro) {
-            statusPdf.innerHTML = "❌ Falha ao converter o PDF localmente.";
-            statusPdf.style.color = "#dc2626";
+            status.innerHTML = "❌ Falha na conversão do PDF.";
+            status.style.color = "#dc2626";
             console.error(erro);
         }
     }
 
-    // ENVIA O TXT OU DOCX PARA O PYTHON PROCESSAR
-    async function enviarParaAnalise() {
-        let fileInput = document.getElementById("fileInput");
-        let btnExportar = document.getElementById("btnExportar");
+    // Envia dados do Edital Atual (Aba 1)
+    async function enviarParaAnalise(rota, inputId, chaveDados) {
+        let fileInput = document.getElementById(inputId);
+        let btnExcel = id => document.getElementById(id === 'tabelaAtual' ? 'btnExportarAtual' : 'btnExportarHist');
         
-        if(fileInput.files.length === 0) {
-            alert("Por favor, selecione um arquivo válido (.docx ou .txt)!");
-            return;
-        }
+        if(fileInput.files.length === 0) { alert("Selecione o arquivo primeiro!"); return; }
         
-        let tbody = document.querySelector("#resultado tbody");
-        tbody.innerHTML = "<tr><td colspan='4' style='text-align:center; color:#666;'>🔄 Minerando dados e processando preços... Aguarde.</td></tr>";
-        btnExportar.disabled = true;
-        dadosLotes = [];
+        let tbody = document.querySelector(`#${chaveDados} tbody`);
+        tbody.innerHTML = "<tr><td colspan='4' style='text-align:center;'>🔄 Processando linhas e minerando dados...</td></tr>";
         
         let formData = new FormData();
         formData.append("file", fileInput.files[0]);
         
         try {
-            let res = await fetch("/upload", { method: "POST", body: formData });
+            let res = await fetch(rota, { method: "POST", body: formData });
             let data = await res.json();
-            
             tbody.innerHTML = "";
             
-            if(data.error || data.erro) {
-                let msgErro = data.error || data.erro;
-                tbody.innerHTML = `<tr><td colspan='4' style='text-align:center; color:red;'>❌ Erro: ${msgErro}</td></tr>`;
-                return;
-            }
+            if(data.error) { tbody.innerHTML = `<tr><td colspan='4' style='color:red; text-align:center;'>❌ ${data.error}</td></tr>`; return; }
             
-            if(!Array.isArray(data) || data.length === 0) {
-                tbody.innerHTML = "<tr><td colspan='4' style='text-align:center; color:#666;'>Nenhum lote foi estruturado corretamente.</td></tr>";
-                return;
-            }
-            
-            dadosLotes = data;
-            btnExportar.disabled = false;
+            dadosGlobais[chaveDados] = data;
+            btnExcel(chaveDados).disabled = false;
             
             data.forEach(item => {
-                let valorMinimo = item.preco_minimo || item.preco || "Não encontrado";
-                let valorAvaliado = item.preco_avaliated || item.preco_avaliado || "Não encontrado";
-                let numLote = item.lote || "S/N";
-                let descricaoLote = item.descricao || "Sem descrição disponível.";
-
                 tbody.innerHTML += `<tr>
-                    <td><span class="badge-lote">Lote ${numLote}</span></td>
-                    <td><span class="preco-tag">${valorMinimo}</span></td>
-                    <td><span class="preco-avaliado">${valorAvaliado}</span></td>
-                    <td style="font-size: 14px; line-height: 1.4;">${descricaoLote}</td>
+                    <td><span class="badge-lote">Lote ${item.lote}</span></td>
+                    <td><span class="preco-tag">${item.preco_minimo}</span></td>
+                    <td><span>${item.preco_avaliado}</span></td>
+                    <td style="font-size:13px;">${item.descricao}</td>
                 </tr>`;
             });
-        } catch (error) {
-            tbody.innerHTML = "<tr><td colspan='4' style='text-align:center; color:red;'>❌ Erro crítico de conexão com o servidor Render.</td></tr>";
+        } catch (e) {
+            tbody.innerHTML = "<tr><td colspan='4' style='color:red; text-align:center;'>❌ Erro crítico de conexão.</td></tr>";
         }
     }
 
-    function exportarParaExcel() {
-        if(dadosLotes.length === 0) return;
+    // Envia os dois arquivos TXT do histórico (Aba 2) para cruzamento no Python
+    async function enviarHistorico() {
+        let relInput = document.getElementById("histRelacaoInput");
+        let lanInput = document.getElementById("histLancesInput");
+        let btn = document.getElementById("btnExportarHist");
+        let tbody = document.querySelector("#tabelaHist tbody");
+        
+        if(relInput.files.length === 0 || lanInput.files.length === 0) {
+            alert("Por favor, selecione AMBOS os arquivos (.txt) para cruzar os dados!");
+            return;
+        }
+        
+        tbody.innerHTML = "<tr><td colspan='5' style='text-align:center;'>🔄 O Python está cruzando as propostas de arrematação com as descrições...</td></tr>";
+        btn.disabled = true;
+        
+        let formData = new FormData();
+        formData.append("file_relacao", relInput.files[0]);
+        formData.append("file_lances", lanInput.files[0]);
+        
+        try {
+            let res = await fetch("/upload_historico", { method: "POST", body: formData });
+            let data = await res.json();
+            tbody.innerHTML = "";
+            
+            if(data.error) { tbody.innerHTML = `<tr><td colspan='5' style='color:red; text-align:center;'>❌ ${data.error}</td></tr>`; return; }
+            
+            dadosGlobais.tabelaHist = data;
+            btn.disabled = false;
+            
+            data.forEach(item => {
+                tbody.innerHTML += `<tr>
+                    <td><span class="badge-lote">Lote ${item.lote}</span></td>
+                    <td><span class="preco-arrematado">${item.valor_arrematado}</span></td>
+                    <td><span class="preco-tag">${item.preco_minimo}</span></td>
+                    <td><span style="color:#64748b; font-size:13px;">${item.preco_avaliado}</span></td>
+                    <td style="font-size:13px; line-height:1.4;">${item.descricao}</td>
+                </tr>`;
+            });
+        } catch (e) {
+            tbody.innerHTML = "<tr><td colspan='5' style='color:red; text-align:center;'>❌ Erro crítico ao processar histórico.</td></tr>";
+        }
+    }
 
-        let htmlExcel = `
-            <meta charset="utf-8">
-            <table border="1">
-                <tr style="background-color: #1e3a8a; color: white; font-weight: bold;">
-                    <th>Lote</th>
-                    <th>Preco Minimo</th>
-                    <th>Preco Avaliado</th>
-                    <th>Descricao dos Produtos</th>
-                </tr>
-        `;
+    // Função universal de exportação para Excel adaptada para 4 ou 5 colunas
+    function exportarExcel(chaveDados, nomeArquivoBase) {
+        let lista = dadosGlobais[chaveDados];
+        if(!lista || lista.length === 0) return;
 
-        dadosLotes.forEach(item => {
-            let valorMinimo = item.preco_minimo || item.preco || "Não encontrado";
-            let valorAvaliado = item.preco_avaliado || "Não encontrado";
-            let numLote = item.lote || "S/N";
-            let descricaoLote = item.descricao || "Sem descrição disponível.";
+        let ehHist = (chaveDados === 'tabelaHist');
+        
+        let html = `<meta charset="utf-8"><table border="1"><tr style="background-color:#1e3a8a; color:white; font-weight:bold;">`;
+        html += ehHist 
+            ? `<th>Lote</th><th>Valor Arrematado</th><th>Preço Mínimo</th><th>Preço Avaliado</th><th>Descrição dos Produtos</th>`
+            : `<th>Lote</th><th>Preço Mínimo</th><th>Preço Avaliado</th><th>Descrição dos Produtos</th>`;
+        html += `</tr>`;
 
-            htmlExcel += `
-                <tr>
-                    <td>Lote ${numLote}</td>
-                    <td>${valorMinimo}</td>
-                    <td>${valorAvaliado}</td>
-                    <td>${descricaoLote}</td>
-                </tr>
-            `;
+        lista.forEach(item => {
+            html += `<tr><td>Lote ${item.lote}</td>`;
+            if(ehHist) html += `<style>td{mso-number-format:"\\#\\,\\#\\#0\\,00";}</style><td>${item.valor_arrematado}</td>`;
+            html += `<td>${item.preco_minimo}</td><td>${item.preco_avaliado}</td><td>${item.descricao}</td></tr>`;
         });
+        html += "</table>";
 
-        htmlExcel += "</table>";
-
-        let blob = new Blob([htmlExcel], { type: "application/vnd.ms-excel" });
+        let blob = new Blob([html], { type: "application/vnd.ms-excel" });
         let url = URL.createObjectURL(blob);
         let a = document.createElement("a");
-        
-        let dataAtual = new Date().toLocaleDateString('pt-BR').replace(/\//g, '-');
+        let data = new Date().toLocaleDateString('pt-BR').replace(/\//g, '-');
         a.href = url;
-        a.download = `Lotes_Receita_Federal_${dataAtual}.xls`;
-        
+        a.download = `${nomeArquivoBase}_${data}.xls`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
