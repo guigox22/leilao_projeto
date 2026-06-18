@@ -1,311 +1,640 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <meta charset="UTF-8">
-    <title>Painel Avançado de Editais - Receita Federal</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 30px; background-color: #f4f6f9; color: #333; }
-        .container { max-width: 1200px; margin: auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
-        h1 { color: #1e3a8a; margin-bottom: 5px; text-align: center; }
-        .subtitle { color: #666; text-align: center; margin-bottom: 25px; font-size: 15px; }
-        
-        /* Sistema de Abas */
-        .abas-menu { display: flex; gap: 10px; border-bottom: 2px solid #e2e8f0; margin-bottom: 25px; }
-        .aba-btn { background: #e2e8f0; color: #475569; border: none; padding: 12px 25px; font-size: 15px; font-weight: bold; border-radius: 6px 6px 0 0; cursor: pointer; transition: all 0.2s; margin-bottom: -2px; }
-        .aba-btn.ativa { background: #1e3a8a; color: white; border-bottom: 2px solid #1e3a8a; }
-        .aba-conteudo { display: none; }
-        .aba-conteudo.ativa { display: block; }
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Analisador de Leilões · Receita Federal</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
 
-        /* Layout */
-        .painel-duplo { display: flex; gap: 25px; margin-bottom: 30px; }
-        .coluna { flex: 1; background: #f8fafc; padding: 20px; border-radius: 8px; border: 1px solid #e2e8f0; }
-        .coluna-pdf { border-left: 5px solid #ef4444; }
-        .coluna-word { border-left: 5px solid #10b981; }
-        .coluna-roxo { border-left: 5px solid #8b5cf6; }
-        
-        h2 { font-size: 18px; margin-top: 0; color: #1e3a8a; display: flex; align-items: center; gap: 8px; }
-        .box-upload { border: 2px dashed #cbd5e1; padding: 15px; text-align: center; border-radius: 6px; background: white; margin-top: 15px; }
-        label { display: block; font-weight: bold; text-align: left; margin-bottom: 5px; color: #475569; font-size: 13px; }
-        input[type="file"] { margin-bottom: 15px; }
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 
-        button { border: none; padding: 10px 18px; font-size: 14px; font-weight: bold; border-radius: 5px; cursor: pointer; transition: background 0.2s; margin-top: 5px; width: 100%; }
-        .btn-pdf { background-color: #ef4444; color: white; }
-        .btn-pdf:hover { background-color: #dc2626; }
-        .btn-word { background-color: #10b981; color: white; }
-        .btn-word:hover { background-color: #059669; }
-        .btn-roxo { background-color: #8b5cf6; color: white; }
-        .btn-roxo:hover { background-color: #7c3aed; }
-        
-        .btn-excel { background-color: #16a34a; color: white; width: auto; display: inline-flex; align-items: center; gap: 8px; }
-        .btn-excel:hover { background-color: #115e59; }
-        .btn-excel:disabled { background-color: #cbd5e1; color: #94a3b8; cursor: not-allowed; }
-        
-        .actions-bar { display: flex; justify-content: space-between; align-items: center; margin-top: 30px; border-top: 2px solid #e2e8f0; padding-top: 15px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 15px; background: white; }
-        th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid #e2e8f0; }
-        th { background-color: #1e3a8a; color: white; font-weight: bold; }
-        tr:hover { background-color: #f8fafc; }
-        
-        .badge-lote { background: #e0f2fe; color: #0369a1; padding: 4px 8px; border-radius: 4px; font-weight: bold; }
-        .preco-tag { color: #16a34a; font-weight: bold; font-size: 15px; }
-        .preco-arrematado { color: #b91c1c; font-weight: bold; font-size: 16px; }
-        .status-msg { margin-top: 8px; font-size: 13px; font-weight: bold; color: #1e293b; }
-    </style>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
-    <script>pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';</script>
+:root{
+  --navy:    #0f2044;
+  --navy2:   #1a3260;
+  --blue:    #2563eb;
+  --blue2:   #1d4ed8;
+  --teal:    #0891b2;
+  --green:   #16a34a;
+  --red:     #dc2626;
+  --amber:   #d97706;
+  --bg:      #f1f5f9;
+  --bg2:     #ffffff;
+  --bg3:     #f8fafc;
+  --border:  #e2e8f0;
+  --border2: #cbd5e1;
+  --text:    #0f172a;
+  --muted:   #64748b;
+  --muted2:  #94a3b8;
+  --radius:  10px;
+  --shadow:  0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.06);
+  --shadow2: 0 4px 16px rgba(0,0,0,.10);
+}
+
+html,body{height:100%;font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+
+/* ── HEADER ── */
+.header{
+  background:linear-gradient(135deg,var(--navy) 0%,var(--navy2) 100%);
+  color:#fff;padding:0 2rem;
+  display:flex;align-items:center;justify-content:space-between;
+  height:64px;box-shadow:0 2px 8px rgba(0,0,0,.25);
+  position:sticky;top:0;z-index:100;
+}
+.header-brand{display:flex;align-items:center;gap:12px}
+.header-icon{
+  width:38px;height:38px;border-radius:9px;
+  background:linear-gradient(135deg,#2563eb,#0891b2);
+  display:flex;align-items:center;justify-content:center;
+  font-size:20px;flex-shrink:0;
+}
+.header-title{font-size:15px;font-weight:700;letter-spacing:-.01em}
+.header-sub{font-size:11px;opacity:.55;margin-top:1px}
+.header-badge{
+  background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);
+  border-radius:20px;padding:4px 12px;font-size:11px;color:rgba(255,255,255,.8);
+}
+
+/* ── CONTAINER ── */
+.container{max-width:1200px;margin:0 auto;padding:1.75rem 1.5rem}
+
+/* ── TABS ── */
+.tabs{display:flex;gap:4px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:4px;margin-bottom:1.75rem;width:fit-content;box-shadow:var(--shadow)}
+.tab-btn{
+  padding:8px 20px;border-radius:7px;border:none;background:transparent;
+  font-size:13px;font-weight:500;color:var(--muted);cursor:pointer;
+  display:flex;align-items:center;gap:7px;transition:all .15s;font-family:'Inter',sans-serif;
+}
+.tab-btn:hover{color:var(--text);background:var(--bg3)}
+.tab-btn.active{background:var(--navy);color:#fff;box-shadow:0 1px 4px rgba(15,32,68,.3)}
+.tab-btn .tab-icon{font-size:15px}
+
+/* ── PANELS ── */
+.panel{display:none}.panel.active{display:block}
+
+/* ── CARDS ── */
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:1.5rem;margin-bottom:1.25rem;box-shadow:var(--shadow)}
+.card-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:1.25rem;gap:1rem}
+.card-title{font-size:14px;font-weight:600;color:var(--text)}
+.card-sub{font-size:12px;color:var(--muted);margin-top:2px}
+
+/* ── UPLOAD ZONE ── */
+.upload-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+.upload-zone{
+  border:2px dashed var(--border2);border-radius:var(--radius);padding:2rem 1.5rem;
+  text-align:center;cursor:pointer;transition:all .2s;background:var(--bg3);
+  position:relative;
+}
+.upload-zone:hover,.upload-zone.dragover{border-color:var(--blue);background:#eff6ff}
+.upload-zone.has-file{border-color:var(--green);background:#f0fdf4}
+.upload-zone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.upload-icon{font-size:28px;margin-bottom:8px}
+.upload-title{font-size:13px;font-weight:600;color:var(--text);margin-bottom:4px}
+.upload-hint{font-size:11px;color:var(--muted)}
+.upload-filename{font-size:12px;color:var(--green);font-weight:500;margin-top:6px;display:none}
+.upload-zone.has-file .upload-filename{display:block}
+.upload-zone.has-file .upload-hint{display:none}
+
+/* ── BUTTONS ── */
+.btn{
+  display:inline-flex;align-items:center;gap:7px;padding:9px 20px;
+  border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;
+  border:none;transition:all .15s;font-family:'Inter',sans-serif;letter-spacing:.01em;
+}
+.btn-primary{background:linear-gradient(135deg,var(--blue),var(--teal));color:#fff}
+.btn-primary:hover{opacity:.9;transform:translateY(-1px);box-shadow:0 4px 12px rgba(37,99,235,.3)}
+.btn-secondary{background:var(--bg3);color:var(--text);border:1px solid var(--border2)}
+.btn-secondary:hover{background:var(--border);color:var(--text)}
+.btn-success{background:#16a34a;color:#fff}
+.btn-success:hover{background:#15803d}
+.btn-sm{padding:6px 14px;font-size:12px}
+.btn:disabled{opacity:.5;cursor:not-allowed;transform:none !important}
+.btn-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:1rem}
+
+/* ── SPINNER ── */
+.spinner-wrap{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:3rem;gap:12px}
+.spinner{width:36px;height:36px;border-radius:50%;border:3px solid var(--border);border-top-color:var(--blue);animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.spinner-text{font-size:13px;color:var(--muted)}
+
+/* ── ERROR ── */
+.error-box{background:#fef2f2;border:1px solid #fecaca;border-radius:var(--radius);padding:1rem 1.25rem;color:#b91c1c;font-size:13px;display:flex;align-items:flex-start;gap:8px}
+
+/* ── STATS BAR ── */
+.stats-bar{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:1.25rem}
+.stat{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:.8rem 1rem;text-align:center}
+.stat-value{font-size:22px;font-weight:700;font-family:'DM Mono',monospace;color:var(--text);line-height:1;margin-bottom:4px}
+.stat-label{font-size:10px;color:var(--muted);font-weight:500;text-transform:uppercase;letter-spacing:.05em}
+.stat.green .stat-value{color:var(--green)}
+.stat.blue .stat-value{color:var(--blue)}
+.stat.amber .stat-value{color:var(--amber)}
+.stat.red .stat-value{color:var(--red)}
+
+/* ── TABLE ── */
+.table-wrap{overflow-x:auto;border-radius:var(--radius);border:1px solid var(--border)}
+table{width:100%;border-collapse:collapse;font-size:12px}
+thead{background:var(--navy);color:#fff}
+th{padding:10px 12px;text-align:left;font-size:10px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;white-space:nowrap}
+td{padding:9px 12px;border-bottom:1px solid var(--border);vertical-align:top;color:var(--text)}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#f8fafc}
+.td-lote{font-weight:700;font-family:'DM Mono',monospace;font-size:13px;white-space:nowrap}
+.td-valor{font-family:'DM Mono',monospace;white-space:nowrap}
+.td-desc{max-width:280px;color:var(--muted);font-size:11px;line-height:1.5}
+.td-tipo{font-size:10px;color:var(--muted2);max-width:130px}
+
+/* Badges */
+.badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;font-family:'DM Mono',monospace;white-space:nowrap}
+.badge-green{background:#dcfce7;color:#15803d}
+.badge-red{background:#fee2e2;color:#b91c1c}
+.badge-blue{background:#dbeafe;color:#1d4ed8}
+.badge-amber{background:#fef3c7;color:#92400e}
+.badge-gray{background:#f1f5f9;color:#64748b}
+
+/* Row coloring */
+tr.row-arrematado td{background:#f0fdf4}
+tr.row-arrematado:hover td{background:#dcfce7}
+tr.row-nao-arrematado td{background:#fff7ed}
+tr.row-nao-arrematado:hover td{background:#fef3c7}
+
+/* ── EXTRATOR ── */
+.textarea-out{
+  width:100%;height:300px;border:1px solid var(--border);border-radius:7px;
+  padding:1rem;font-family:'DM Mono',monospace;font-size:12px;color:var(--text);
+  background:var(--bg3);resize:vertical;line-height:1.6;
+}
+
+/* ── SECTION TITLE ── */
+.section-title{font-size:16px;font-weight:700;color:var(--text);margin-bottom:.3rem}
+.section-sub{font-size:13px;color:var(--muted);margin-bottom:1.5rem}
+
+/* ── HOW IT WORKS ── */
+.steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:1.5rem}
+.step{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;display:flex;gap:12px;align-items:flex-start}
+.step-num{width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,var(--blue),var(--teal));color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.step-text{font-size:12px;color:var(--muted);line-height:1.5}
+.step-text strong{color:var(--text);display:block;margin-bottom:2px}
+
+/* ── RESPONSIVE ── */
+@media(max-width:768px){
+  .upload-grid{grid-template-columns:1fr}
+  .stats-bar{grid-template-columns:repeat(2,1fr)}
+  .header{padding:0 1rem}
+  .container{padding:1.25rem 1rem}
+}
+</style>
 </head>
 <body>
 
+<!-- HEADER -->
+<header class="header">
+  <div class="header-brand">
+    <div class="header-icon">🔨</div>
+    <div>
+      <div class="header-title">Analisador de Leilões</div>
+      <div class="header-sub">Receita Federal do Brasil</div>
+    </div>
+  </div>
+  <span class="header-badge">v2.0</span>
+</header>
+
+<!-- CONTENT -->
 <div class="container">
-    <h1>📋 Painel Integrado de Editais - Receita Federal</h1>
-    <div class="subtitle">Gestão inteligente e mineração de dados para Leilões da Receita Federal.</div>
-    
-    <div class="abas-menu">
-        <button class="aba-btn ativa" onclick="mudarAba('analisador')">⚡ Analisador de Editais Atuais</button>
-        <button class="aba-btn" onclick="mudarAba('historico')">🔍 Pesquisa de Lotes Passados</button>
-    </div>
-    
-    <div id="analisador" class="aba-conteudo ativa">
-        <div class="painel-duplo">
-            <div class="coluna coluna-pdf">
-                <h2>Step 1: 📄 Conversor de PDF para Texto</h2>
-                <p style="font-size: 13px; color: #64748b; margin: 5px 0 15px 0;">Converta o edital atual em PDF para processamento.</p>
-                <div class="box-upload">
-                    <input type="file" id="pdfInputAba1" accept=".pdf" style="width: 100%;">
-                    <button class="btn-pdf" onclick="converterPdfParaTexto('pdfInputAba1', 'statusPdfAba1', '_CONVERTED_ATUAL.txt')">🔄 Converter para TEXTO (.txt)</button>
-                    <div id="statusPdfAba1" class="status-msg"></div>
-                </div>
-            </div>
-            <div class="coluna coluna-word">
-                <h2>Step 2: 📝 Analisador (.docx ou .txt)</h2>
-                <p style="font-size: 13px; color: #64748b; margin: 5px 0 15px 0;">Suba o arquivo para extrair lotes e valores mínimos/avaliados.</p>
-                <div class="box-upload">
-                    <input type="file" id="fileInputAba1" accept=".docx,.txt" style="width: 100%;">
-                    <button class="btn-word" onclick="enviarParaAnalise('/upload', 'fileInputAba1', 'tabelaAtual')">⚡ Analisar Edital</button>
-                </div>
-            </div>
+
+  <!-- TABS -->
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('edital')">
+      <span class="tab-icon">📋</span> Edital Atual
+    </button>
+    <button class="tab-btn" onclick="switchTab('historico')">
+      <span class="tab-icon">📊</span> Comparativo Histórico
+    </button>
+    <button class="tab-btn" onclick="switchTab('extrator')">
+      <span class="tab-icon">📄</span> Extrair PDF
+    </button>
+  </div>
+
+  <!-- ═══════════════ PAINEL: EDITAL ATUAL ═══════════════ -->
+  <div class="panel active" id="panel-edital">
+
+    <div class="section-title">Análise de Edital</div>
+    <div class="section-sub">Faça upload da <strong>Relação de Lotes</strong> (PDF ou TXT) para extrair lotes, preços e descrições.</div>
+
+    <div class="card">
+      <div style="max-width:480px">
+        <div class="upload-zone" id="zone-edital" ondragover="onDrag(event,this)" ondragleave="offDrag(this)" ondrop="onDrop(event,this,'file-edital')">
+          <input type="file" id="file-edital" accept=".pdf,.txt,.docx" onchange="onFileChange(this,'zone-edital','name-edital')">
+          <div class="upload-icon">📂</div>
+          <div class="upload-title">Arraste ou clique para selecionar</div>
+          <div class="upload-hint">Relação de Lotes · PDF, TXT ou DOCX</div>
+          <div class="upload-filename" id="name-edital"></div>
         </div>
-        
-        <div class="actions-bar">
-            <h3 style="margin: 0; color: #1e3a8a;">📊 Lotes Minerados (Edital Atual)</h3>
-            <button id="btnExportarAtual" class="btn-excel" onclick="exportarExcel('tabelaAtual', 'Lotes_Edital_Atual')" disabled>📊 Baixar Planilha Excel</button>
+        <div class="btn-row">
+          <button class="btn btn-primary" onclick="analisarEdital()" id="btn-edital">
+            <span>🔍</span> Analisar Edital
+          </button>
+          <button class="btn btn-secondary btn-sm" onclick="limpar('edital')">↺ Limpar</button>
         </div>
-        <table id="tabelaAtual">
-            <thead>
-                <tr><th style="width: 10%;">Lote</th><th style="width: 20%;">Preço Mínimo</th><th style="width: 20%;">Preço Avaliado</th><th style="width: 50%;">Descrição dos Produtos</th></tr>
-            </thead>
-            <tbody><tr><td colspan="4" style="text-align:center; color:#94a3b8;">Aguardando envio do arquivo...</td></tr></tbody>
-        </table>
+      </div>
     </div>
 
-    <div id="historico" class="aba-conteudo">
-        <div class="painel-duplo">
-            <div class="coluna coluna-pdf">
-                <h2>Step 1: 📄 Conversor de Históricos</h2>
-                <p style="font-size: 13px; color: #64748b; margin: 5px 0 15px 0;">Converta individualmente os PDFs antigos antes de analisá-los.</p>
-                <div class="box-upload">
-                    <input type="file" id="pdfInputAba2" accept=".pdf" style="width: 100%;">
-                    <button class="btn-pdf" onclick="converterPdfParaTexto('pdfInputAba2', 'statusPdfAba2', '_HISTORICO_CONVERTED.txt')">🔄 Converter para TEXTO (.txt)</button>
-                    <div id="statusPdfAba2" class="status-msg"></div>
-                </div>
-            </div>
-            <div class="coluna coluna-roxo">
-                <h2>Step 2: 🔍 Cruzador de Dados Históricos</h2>
-                <p style="font-size: 13px; color: #64748b; margin: 5px 0 15px 0;">Suba os dois arquivos convertidos em .txt para cruzar descrições e arrematações.</p>
-                <div class="box-upload">
-                    <label>1. Arquivo Relação de Lotes (.txt):</label>
-                    <input type="file" id="histRelacaoInput" accept=".txt" style="width: 100%;">
-                    
-                    <label>2. Arquivo Propostas e Lances (.txt):</label>
-                    <input type="file" id="histLancesInput" accept=".txt" style="width: 100%;">
-                    
-                    <button class="btn-roxo" onclick="enviarHistorico()">🧠 Cruzar e Gerar Histórico</button>
-                </div>
-            </div>
-        </div>
+    <div id="resultado-edital"></div>
+  </div>
 
-        <div class="actions-bar">
-            <h3 style="margin: 0; color: #8b5cf6;">📊 Relatório Comparativo de Lotes Arrematados</h3>
-            <button id="btnExportarHist" class="btn-excel" onclick="exportarExcel('tabelaHist', 'Historico_Lotes_Arrematados')" disabled>📊 Baixar Relatório Histórico</button>
-        </div>
-        <table id="tabelaHist">
-            <thead>
-                <tr>
-                    <th style="width: 8%;">Lote</th>
-                    <th style="width: 17%;">Valor Arrematado</th>
-                    <th style="width: 15%;">Preço Mínimo</th>
-                    <th style="width: 15%;">Preço Avaliado</th>
-                    <th style="width: 45%;">Descrição do que Havia no Lote</th>
-                </tr>
-            </thead>
-            <tbody><tr><td colspan="5" style="text-align:center; color:#94a3b8;">Suba os arquivos .txt do Step 2 para cruzar o relatório histórico.</td></tr></tbody>
-        </table>
+  <!-- ═══════════════ PAINEL: HISTÓRICO ═══════════════ -->
+  <div class="panel" id="panel-historico">
+
+    <div class="section-title">Comparativo Histórico</div>
+    <div class="section-sub">Compare dois relatórios para ver por quanto cada lote foi arrematado.</div>
+
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-text"><strong>Relação de Lotes</strong>Contém os lotes, descrições e preços mínimos do edital.</div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-text"><strong>Propostas e Lances</strong>Contém os lances e o valor final de arrematação.</div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-text"><strong>Resultado cruzado</strong>Ver preço mínimo, avaliado e valor arrematado lado a lado.</div>
+      </div>
     </div>
-</div>
+
+    <div class="card">
+      <div class="upload-grid">
+        <div>
+          <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:8px">📋 Relação de Lotes</div>
+          <div class="upload-zone" id="zone-relacao" ondragover="onDrag(event,this)" ondragleave="offDrag(this)" ondrop="onDrop(event,this,'file-relacao')">
+            <input type="file" id="file-relacao" accept=".pdf,.txt,.docx" onchange="onFileChange(this,'zone-relacao','name-relacao')">
+            <div class="upload-icon">📋</div>
+            <div class="upload-title">Relação de Lotes</div>
+            <div class="upload-hint">PDF, TXT ou DOCX</div>
+            <div class="upload-filename" id="name-relacao"></div>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:8px">📊 Propostas e Lances</div>
+          <div class="upload-zone" id="zone-lances" ondragover="onDrag(event,this)" ondragleave="offDrag(this)" ondrop="onDrop(event,this,'file-lances')">
+            <input type="file" id="file-lances" accept=".pdf,.txt,.docx" onchange="onFileChange(this,'zone-lances','name-lances')">
+            <div class="upload-icon">📊</div>
+            <div class="upload-title">Propostas e Lances</div>
+            <div class="upload-hint">PDF, TXT ou DOCX</div>
+            <div class="upload-filename" id="name-lances"></div>
+          </div>
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="analisarHistorico()" id="btn-historico">
+          <span>🔀</span> Comparar Leilão
+        </button>
+        <button class="btn btn-secondary btn-sm" onclick="limpar('historico')">↺ Limpar</button>
+      </div>
+    </div>
+
+    <div id="resultado-historico"></div>
+  </div>
+
+  <!-- ═══════════════ PAINEL: EXTRATOR PDF ═══════════════ -->
+  <div class="panel" id="panel-extrator">
+
+    <div class="section-title">Extrator de PDF</div>
+    <div class="section-sub">Converta qualquer PDF da Receita Federal em texto para visualizar ou copiar.</div>
+
+    <div class="card">
+      <div style="max-width:480px">
+        <div class="upload-zone" id="zone-pdf" ondragover="onDrag(event,this)" ondragleave="offDrag(this)" ondrop="onDrop(event,this,'file-pdf')">
+          <input type="file" id="file-pdf" accept=".pdf" onchange="onFileChange(this,'zone-pdf','name-pdf')">
+          <div class="upload-icon">📄</div>
+          <div class="upload-title">Arraste ou clique para selecionar</div>
+          <div class="upload-hint">Somente arquivos PDF</div>
+          <div class="upload-filename" id="name-pdf"></div>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-primary" onclick="extrairPDF()" id="btn-pdf">
+            <span>⚡</span> Extrair Texto
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div id="resultado-extrator"></div>
+  </div>
+
+</div><!-- /container -->
 
 <script>
-    let dadosGlobais = { tabelaAtual: [], tabelaHist: [] };
+// ─── TABS ───────────────────────────────────────────────────────────────────
+function switchTab(tab) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('panel-' + tab).classList.add('active');
+  event.currentTarget.classList.add('active');
+}
 
-    // Controla a troca de abas na tela
-    function mudarAba(idAba) {
-        document.querySelectorAll('.aba-btn').forEach(btn => btn.classList.remove('ativa'));
-        document.querySelectorAll('.aba-conteudo').forEach(cont => cont.classList.remove('ativa'));
-        
-        event.target.classList.add('ativa');
-        document.getElementById(idAba).classList.add('ativa');
+// ─── FILE UPLOAD ────────────────────────────────────────────────────────────
+function onDrag(e, zone) { e.preventDefault(); zone.classList.add('dragover'); }
+function offDrag(zone)   { zone.classList.remove('dragover'); }
+
+function onDrop(e, zone, inputId) {
+  e.preventDefault();
+  zone.classList.remove('dragover');
+  const files = e.dataTransfer.files;
+  if (files.length > 0) {
+    const input = document.getElementById(inputId);
+    const dt = new DataTransfer();
+    dt.items.add(files[0]);
+    input.files = dt.files;
+    const nameId = inputId.replace('file-', 'name-');
+    onFileChange(input, zone.id, nameId);
+  }
+}
+
+function onFileChange(input, zoneId, nameId) {
+  const zone = document.getElementById(zoneId);
+  const nameEl = document.getElementById(nameId);
+  if (input.files.length > 0) {
+    zone.classList.add('has-file');
+    nameEl.textContent = '✓ ' + input.files[0].name;
+  } else {
+    zone.classList.remove('has-file');
+    nameEl.textContent = '';
+  }
+}
+
+// ─── LIMPAR ─────────────────────────────────────────────────────────────────
+function limpar(tipo) {
+  if (tipo === 'edital') {
+    document.getElementById('file-edital').value = '';
+    document.getElementById('zone-edital').classList.remove('has-file');
+    document.getElementById('name-edital').textContent = '';
+    document.getElementById('resultado-edital').innerHTML = '';
+  } else {
+    document.getElementById('file-relacao').value = '';
+    document.getElementById('file-lances').value = '';
+    ['zone-relacao','zone-lances'].forEach(id => document.getElementById(id).classList.remove('has-file'));
+    ['name-relacao','name-lances'].forEach(id => document.getElementById(id).textContent = '');
+    document.getElementById('resultado-historico').innerHTML = '';
+  }
+}
+
+// ─── LOADING ────────────────────────────────────────────────────────────────
+function showLoading(containerId, msg) {
+  document.getElementById(containerId).innerHTML = `
+    <div class="spinner-wrap">
+      <div class="spinner"></div>
+      <div class="spinner-text">${msg}</div>
+    </div>`;
+}
+
+function showError(containerId, msg) {
+  document.getElementById(containerId).innerHTML = `
+    <div class="error-box">
+      <span style="font-size:16px">⚠️</span>
+      <span>${msg}</span>
+    </div>`;
+}
+
+// ─── FORMATOS ───────────────────────────────────────────────────────────────
+function fmtNum(v) {
+  const n = parseFloat(v.replace(/\./g,'').replace(',','.'));
+  return isNaN(n) ? v : 'R$ ' + n.toLocaleString('pt-BR', {minimumFractionDigits:2});
+}
+
+// ─── ANALISAR EDITAL ────────────────────────────────────────────────────────
+async function analisarEdital() {
+  const input = document.getElementById('file-edital');
+  if (!input.files.length) { alert('Selecione um arquivo primeiro.'); return; }
+
+  const btn = document.getElementById('btn-edital');
+  btn.disabled = true; btn.textContent = '⏳ Analisando...';
+  showLoading('resultado-edital', 'Processando Relação de Lotes…');
+
+  const fd = new FormData();
+  fd.append('file', input.files[0]);
+
+  try {
+    const res = await fetch('/upload', { method:'POST', body: fd });
+    const data = await res.json();
+    if (data.error) { showError('resultado-edital', data.error); return; }
+    renderEdital(data);
+  } catch(e) {
+    showError('resultado-edital', 'Erro de conexão: ' + e.message);
+  } finally {
+    btn.disabled = false; btn.innerHTML = '<span>🔍</span> Analisar Edital';
+  }
+}
+
+function renderEdital(lotes) {
+  const total = lotes.length;
+  const stats = `
+    <div class="stats-bar">
+      <div class="stat blue"><div class="stat-value">${total}</div><div class="stat-label">Lotes encontrados</div></div>
+    </div>`;
+
+  const rows = lotes.map(l => `
+    <tr>
+      <td class="td-lote">${l.lote}</td>
+      <td class="td-tipo">${l.tipo || '—'}</td>
+      <td class="td-valor">${l.preco_minimo}</td>
+      <td class="td-valor">${l.preco_avaliado}</td>
+      <td class="td-desc">${l.descricao}</td>
+    </tr>`).join('');
+
+  document.getElementById('resultado-edital').innerHTML = `
+    ${stats}
+    <div class="card" style="padding:0">
+      <div style="padding:1rem 1.25rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+        <span style="font-size:13px;font-weight:600">${total} lote${total > 1 ? 's' : ''} encontrado${total > 1 ? 's' : ''}</span>
+        <button class="btn btn-success btn-sm" onclick="exportCSV(window.__editalData,'leilao_edital')">
+          📥 Exportar CSV
+        </button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>Lote</th><th>Tipo</th><th>Preço Mínimo</th><th>Avaliado</th><th>Descrição</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </div>`;
+
+  window.__editalData = lotes;
+}
+
+// ─── COMPARATIVO HISTÓRICO ───────────────────────────────────────────────────
+async function analisarHistorico() {
+  const fRel = document.getElementById('file-relacao');
+  const fLan = document.getElementById('file-lances');
+  if (!fRel.files.length || !fLan.files.length) {
+    alert('Selecione os dois arquivos antes de continuar.'); return;
+  }
+
+  const btn = document.getElementById('btn-historico');
+  btn.disabled = true; btn.textContent = '⏳ Processando…';
+  showLoading('resultado-historico', 'Cruzando dados dos dois relatórios…');
+
+  const fd = new FormData();
+  fd.append('file_relacao', fRel.files[0]);
+  fd.append('file_lances',  fLan.files[0]);
+
+  try {
+    const res = await fetch('/upload_historico', { method:'POST', body: fd });
+    const data = await res.json();
+    if (data.error) { showError('resultado-historico', data.error); return; }
+    renderHistorico(data);
+  } catch(e) {
+    showError('resultado-historico', 'Erro de conexão: ' + e.message);
+  } finally {
+    btn.disabled = false; btn.innerHTML = '<span>🔀</span> Comparar Leilão';
+  }
+}
+
+function renderHistorico(lotes) {
+  const total     = lotes.length;
+  const arrematados = lotes.filter(l => l.valor_arrematado !== 'Não arrematado' && l.valor_arrematado !== 'Sem informação');
+  const naoArr    = lotes.filter(l => l.valor_arrematado === 'Não arrematado');
+
+  // Total arrematado
+  let totalVal = 0;
+  arrematados.forEach(l => {
+    const n = parseFloat((l.valor_arrematado || '').replace('R$ ','').replace(/\./g,'').replace(',','.'));
+    if (!isNaN(n)) totalVal += n;
+  });
+
+  const stats = `
+    <div class="stats-bar">
+      <div class="stat blue"><div class="stat-value">${total}</div><div class="stat-label">Total de lotes</div></div>
+      <div class="stat green"><div class="stat-value">${arrematados.length}</div><div class="stat-label">Arrematados</div></div>
+      <div class="stat amber"><div class="stat-value">${naoArr.length}</div><div class="stat-label">Não arrematados</div></div>
+      <div class="stat blue">
+        <div class="stat-value" style="font-size:14px">
+          ${totalVal > 0 ? 'R$ ' + totalVal.toLocaleString('pt-BR',{minimumFractionDigits:2}) : '—'}
+        </div>
+        <div class="stat-label">Total arrematado</div>
+      </div>
+    </div>`;
+
+  const rows = lotes.map(l => {
+    const isArr  = l.valor_arrematado !== 'Não arrematado' && l.valor_arrematado !== 'Sem informação';
+    const isNao  = l.valor_arrematado === 'Não arrematado';
+    const rowCls = isArr ? 'row-arrematado' : isNao ? 'row-nao-arrematado' : '';
+    
+    let badge = '';
+    if (isArr)       badge = `<span class="badge badge-green">✓ Arrematado</span>`;
+    else if (isNao)  badge = `<span class="badge badge-amber">✗ Não arrematado</span>`;
+    else             badge = `<span class="badge badge-gray">Sem info</span>`;
+
+    // Calc diferença entre preço mínimo e arrematado
+    let diffHtml = '';
+    if (isArr) {
+      const min = parseFloat((l.preco_minimo || '').replace('R$ ','').replace(/\./g,'').replace(',','.'));
+      const arr = parseFloat((l.valor_arrematado || '').replace('R$ ','').replace(/\./g,'').replace(',','.'));
+      if (!isNaN(min) && !isNaN(arr)) {
+        const diff = ((arr - min) / min * 100).toFixed(0);
+        const cls  = diff >= 0 ? 'green' : 'red';
+        diffHtml   = `<span style="color:var(--${cls});font-size:10px;font-weight:600">${diff >= 0 ? '+' : ''}${diff}%</span>`;
+      }
     }
 
-    // Função universal de conversão de PDF para TXT local
-    async function converterPdfParaTexto(inputId, statusId, sufixoNome) {
-        let input = document.getElementById(inputId);
-        let status = document.getElementById(statusId);
-        if (input.files.length === 0) { alert("Selecione um arquivo PDF primeiro!"); return; }
-        
-        let arquivo = input.files[0];
-        status.innerHTML = "⏳ Extraindo texto do PDF...";
-        status.style.color = "#2563eb";
+    return `
+      <tr class="${rowCls}">
+        <td class="td-lote">${l.lote}</td>
+        <td class="td-tipo">${l.tipo || '—'}</td>
+        <td class="td-valor">${l.preco_minimo}</td>
+        <td class="td-valor">${l.preco_avaliado}</td>
+        <td class="td-valor">
+          ${l.valor_arrematado}<br>${diffHtml}
+        </td>
+        <td>${badge}</td>
+        <td class="td-desc">${l.descricao}</td>
+      </tr>`;
+  }).join('');
 
-        try {
-            let arrayBuffer = await arquivo.arrayBuffer();
-            let pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-            let textoCompleto = "";
+  document.getElementById('resultado-historico').innerHTML = `
+    ${stats}
+    <div class="card" style="padding:0">
+      <div style="padding:1rem 1.25rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+        <span style="font-size:13px;font-weight:600">${total} lote${total > 1 ? 's' : ''} cruzado${total > 1 ? 's' : ''}</span>
+        <button class="btn btn-success btn-sm" onclick="exportCSV(window.__histData,'leilao_historico')">
+          📥 Exportar CSV
+        </button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>Lote</th><th>Tipo</th><th>Preço Mínimo</th><th>Avaliado</th>
+            <th>Valor Arrematado</th><th>Status</th><th>Descrição</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </div>`;
 
-            for (let i = 1; i <= pdf.numPages; i++) {
-                let pagina = await pdf.getPage(i);
-                let conteudoTexto = await pagina.getTextContent();
-                let itensTexto = conteudoTexto.items.map(item => item.str).join(" ");
-                textoCompleto += `--- PAGE ${i} ---\n` + itensTexto + "\n\n";
-                status.innerHTML = `⏳ Convertendo: Página ${i} de ${pdf.numPages}...`;
-            }
+  window.__histData = lotes;
+}
 
-            let blob = new Blob([textoCompleto], { type: 'text/plain;charset=utf-8' });
-            let url = URL.createObjectURL(blob);
-            let a = document.createElement("a");
-            a.href = url;
-            a.download = arquivo.name.replace(".pdf", "") + sufixoNome;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
+// ─── EXTRAIR PDF ─────────────────────────────────────────────────────────────
+async function extrairPDF() {
+  const input = document.getElementById('file-pdf');
+  if (!input.files.length) { alert('Selecione um PDF primeiro.'); return; }
 
-            status.innerHTML = "✅ Concluído! Arquivo salvo em Downloads.";
-            status.style.color = "#16a34a";
-        } catch (erro) {
-            status.innerHTML = "❌ Falha na conversão do PDF.";
-            status.style.color = "#dc2626";
-            console.error(erro);
-        }
-    }
+  const btn = document.getElementById('btn-pdf');
+  btn.disabled = true; btn.textContent = '⏳ Extraindo…';
+  showLoading('resultado-extrator', 'Lendo o PDF…');
 
-    // Envia dados do Edital Atual (Aba 1)
-    async function enviarParaAnalise(rota, inputId, chaveDados) {
-        let fileInput = document.getElementById(inputId);
-        let btnExcel = id => document.getElementById(id === 'tabelaAtual' ? 'btnExportarAtual' : 'btnExportarHist');
-        
-        if(fileInput.files.length === 0) { alert("Selecione o arquivo primeiro!"); return; }
-        
-        let tbody = document.querySelector(`#${chaveDados} tbody`);
-        tbody.innerHTML = "<tr><td colspan='4' style='text-align:center;'>🔄 Processando linhas e minerando dados...</td></tr>";
-        
-        let formData = new FormData();
-        formData.append("file", fileInput.files[0]);
-        
-        try {
-            let res = await fetch(rota, { method: "POST", body: formData });
-            let data = await res.json();
-            tbody.innerHTML = "";
-            
-            if(data.error) { tbody.innerHTML = `<tr><td colspan='4' style='color:red; text-align:center;'>❌ ${data.error}</td></tr>`; return; }
-            
-            dadosGlobais[chaveDados] = data;
-            btnExcel(chaveDados).disabled = false;
-            
-            data.forEach(item => {
-                tbody.innerHTML += `<tr>
-                    <td><span class="badge-lote">Lote ${item.lote}</span></td>
-                    <td><span class="preco-tag">${item.preco_minimo}</span></td>
-                    <td><span>${item.preco_avaliado}</span></td>
-                    <td style="font-size:13px;">${item.descricao}</td>
-                </tr>`;
-            });
-        } catch (e) {
-            tbody.innerHTML = "<tr><td colspan='4' style='color:red; text-align:center;'>❌ Erro crítico de conexão.</td></tr>";
-        }
-    }
+  const fd = new FormData();
+  fd.append('file', input.files[0]);
 
-    // Envia os dois arquivos TXT do histórico (Aba 2) para cruzamento no Python
-    async function enviarHistorico() {
-        let relInput = document.getElementById("histRelacaoInput");
-        let lanInput = document.getElementById("histLancesInput");
-        let btn = document.getElementById("btnExportarHist");
-        let tbody = document.querySelector("#tabelaHist tbody");
-        
-        if(relInput.files.length === 0 || lanInput.files.length === 0) {
-            alert("Por favor, selecione AMBOS os arquivos (.txt) para cruzar os dados!");
-            return;
-        }
-        
-        tbody.innerHTML = "<tr><td colspan='5' style='text-align:center;'>🔄 O Python está cruzando as propostas de arrematação com as descrições...</td></tr>";
-        btn.disabled = true;
-        
-        let formData = new FormData();
-        formData.append("file_relacao", relInput.files[0]);
-        formData.append("file_lances", lanInput.files[0]);
-        
-        try {
-            let res = await fetch("/upload_historico", { method: "POST", body: formData });
-            let data = await res.json();
-            tbody.innerHTML = "";
-            
-            if(data.error) { tbody.innerHTML = `<tr><td colspan='5' style='color:red; text-align:center;'>❌ ${data.error}</td></tr>`; return; }
-            
-            dadosGlobais.tabelaHist = data;
-            btn.disabled = false;
-            
-            data.forEach(item => {
-                tbody.innerHTML += `<tr>
-                    <td><span class="badge-lote">Lote ${item.lote}</span></td>
-                    <td><span class="preco-arrematado">${item.valor_arrematado}</span></td>
-                    <td><span class="preco-tag">${item.preco_minimo}</span></td>
-                    <td><span style="color:#64748b; font-size:13px;">${item.preco_avaliado}</span></td>
-                    <td style="font-size:13px; line-height:1.4;">${item.descricao}</td>
-                </tr>`;
-            });
-        } catch (e) {
-            tbody.innerHTML = "<tr><td colspan='5' style='color:red; text-align:center;'>❌ Erro crítico ao processar histórico.</td></tr>";
-        }
-    }
+  try {
+    const res = await fetch('/extrair_pdf', { method:'POST', body: fd });
+    const data = await res.json();
+    if (data.error) { showError('resultado-extrator', data.error); return; }
 
-    // Função universal de exportação para Excel adaptada para 4 ou 5 colunas
-    function exportarExcel(chaveDados, nomeArquivoBase) {
-        let lista = dadosGlobais[chaveDados];
-        if(!lista || lista.length === 0) return;
+    document.getElementById('resultado-extrator').innerHTML = `
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">Texto extraído</div>
+            <div class="card-sub">${data.linhas} linhas</div>
+          </div>
+          <button class="btn btn-secondary btn-sm" onclick="copiarTexto()">📋 Copiar tudo</button>
+        </div>
+        <textarea class="textarea-out" id="texto-extraido" readonly>${data.texto}</textarea>
+      </div>`;
+  } catch(e) {
+    showError('resultado-extrator', 'Erro: ' + e.message);
+  } finally {
+    btn.disabled = false; btn.innerHTML = '<span>⚡</span> Extrair Texto';
+  }
+}
 
-        let ehHist = (chaveDados === 'tabelaHist');
-        
-        let html = `<meta charset="utf-8"><table border="1"><tr style="background-color:#1e3a8a; color:white; font-weight:bold;">`;
-        html += ehHist 
-            ? `<th>Lote</th><th>Valor Arrematado</th><th>Preço Mínimo</th><th>Preço Avaliado</th><th>Descrição dos Produtos</th>`
-            : `<th>Lote</th><th>Preço Mínimo</th><th>Preço Avaliado</th><th>Descrição dos Produtos</th>`;
-        html += `</tr>`;
+function copiarTexto() {
+  const ta = document.getElementById('texto-extraido');
+  navigator.clipboard.writeText(ta.value).then(() => alert('Texto copiado!'));
+}
 
-        lista.forEach(item => {
-            html += `<tr><td>Lote ${item.lote}</td>`;
-            if(ehHist) html += `<style>td{mso-number-format:"\\#\\,\\#\\#0\\,00";}</style><td>${item.valor_arrematado}</td>`;
-            html += `<td>${item.preco_minimo}</td><td>${item.preco_avaliado}</td><td>${item.descricao}</td></tr>`;
-        });
-        html += "</table>";
+// ─── EXPORT CSV ──────────────────────────────────────────────────────────────
+function exportCSV(data, filename) {
+  if (!data || !data.length) { alert('Nenhum dado para exportar.'); return; }
 
-        let blob = new Blob([html], { type: "application/vnd.ms-excel" });
-        let url = URL.createObjectURL(blob);
-        let a = document.createElement("a");
-        let data = new Date().toLocaleDateString('pt-BR').replace(/\//g, '-');
-        a.href = url;
-        a.download = `${nomeArquivoBase}_${data}.xls`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-    }
+  const keys   = Object.keys(data[0]);
+  const header = keys.join(';');
+  const rows   = data.map(row =>
+    keys.map(k => `"${(row[k] || '').toString().replace(/"/g,'""')}"`).join(';')
+  );
+  const csv = '\uFEFF' + [header, ...rows].join('\r\n'); // BOM for Excel
+
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = filename + '.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+}
 </script>
-
 </body>
 </html>
