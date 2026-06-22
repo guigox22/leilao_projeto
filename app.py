@@ -5,12 +5,26 @@ import zipfile
 from flask import Flask, render_template, request, jsonify, send_file
 
 app = Flask(__name__)
-app.config['MAX_CONTENT_LENGTH'] = 150 * 1024 * 1024  # 150 MB
+app.config['MAX_CONTENT_LENGTH'] = 150 * 1024 * 1024  # Limite seguro de 150 MB
 
-# ─── EXTRAÇÃO DE TEXTO DIRETA (ULTRA RÁPIDA E BAIXO CONSUMO) ─────────────────
+# ─── 1. INTERCEPTADOR GLOBAL DE ERROS (BLINDAGEM CONTRA ERRO DE JSON) ────────
+
+@app.errorhandler(Exception)
+def handle_exception(e):
+    """
+    Captura QUALQUER erro interno do servidor ou framework e força o retorno 
+    em formato JSON limpo. Isso impede o navegador de receber páginas HTML,
+    eliminando de vez o erro 'Unexpected token <'.
+    """
+    if hasattr(e, 'code') and hasattr(e, 'description'):
+        return jsonify({"error": f"Erro {e.code}: {e.description}"}), e.code
+    return jsonify({"error": f"Erro interno de processamento: {str(e)}"}), 500
+
+
+# ─── 2. EXTRAÇÃO DE TEXTO DIRETA (ULTRA LEVE E LIVRE DE CRASHES) ──────────────
 
 def extract_text(file_storage):
-    """Extrai o texto do arquivo diretamente da stream sem duplicar em memória"""
+    """Lê o arquivo diretamente de forma sequencial sem duplicar dados na RAM"""
     data = file_storage.read()
     filename = (file_storage.filename or '').lower()
 
@@ -35,7 +49,7 @@ def extract_text(file_storage):
 
 
 def split_pdf_bytes(data, pages_per_chunk=150):
-    """Mantido puramente para a aba de Divisão manual de PDFs"""
+    """Mantido puramente para dar suporte à aba de Divisão manual de PDFs"""
     from pypdf import PdfReader, PdfWriter
     reader = PdfReader(io.BytesIO(data))
     total  = len(reader.pages)
@@ -51,34 +65,51 @@ def split_pdf_bytes(data, pages_per_chunk=150):
     return chunks, total
 
 
-# ─── PARSER: RELAÇÃO DE LOTES ─────────────────────────────────────────────────
+# ─── 3. PARSER DA RELAÇÃO DE LOTES (MÉTODO DE JANELA EXPANDIDA) ───────────────
 
 def parse_relacao(text):
+    """
+    Usa busca por proximidade em uma janela de contexto.
+    Resolve problemas onde o Preço Mínimo é extraído antes ou depois do número do Lote.
+    """
     mapa = {}
-    blocos = re.split(r'(?=Lote\s*(?:N[°º\.o]*)?\s*:\s*\d+)', text, flags=re.IGNORECASE)
+    # Encontra os pontos exatos onde cada marcador de Lote começa no documento
+    iterator = re.finditer(r'Lote\s*(?:N[°º\.o]*)?\s*:\s*(\d+)', text, re.IGNORECASE)
+    matches = list(iterator)
 
-    for bloco in blocos:
-        if not bloco.strip():
-            continue
-        m = re.search(r'Lote\s*(?:N[°º\.o]*)?\s*:\s*(\d+)', bloco, re.IGNORECASE)
-        if not m:
-            continue
-        num = str(int(m.group(1)))
+    for i, match in enumerate(matches):
+        num = str(int(match.group(1)))
+        start_pos = match.start()
 
-        m_min  = re.search(r'Preço\s*Mínimo\s*\(R\$\)\s*:\s*([\d\.]+,\d{2})', bloco, re.IGNORECASE)
-        m_av   = re.search(r'Avaliado\s+em\s*\(R\$\)\s*:\s*([\d\.]+,\d{2})', bloco, re.IGNORECASE)
-        m_tipo = re.search(r'Tipo\s+de\s+Lote\s*:\s*([^\n\r]+)', bloco, re.IGNORECASE)
+        # Abre uma janela flexível ao redor do marcador do Lote para capturar dados flutuantes
+        window_start = max(0, start_pos - 600)  # Pega até 600 caracteres antes (caso valores subam)
+        if i + 1 < len(matches):
+            window_end = matches[i+1].start()   # Limita até o início do próximo lote
+        else:
+            window_end = len(text)
+
+        window_end = max(window_end, start_pos + 2000)
+        window_end = min(window_end, len(text))
+
+        bloco_completo = text[window_start:window_end]
+
+        # Captura de Valores
+        m_min  = re.search(r'Preço\s*Mínimo\s*\(R\$\)\s*:\s*([\d\.]+,\d{2})', bloco_completo, re.IGNORECASE)
+        m_av   = re.search(r'Avaliado\s+(?:em\s*)?\(R\$\)\s*:\s*([\d\.]+,\d{2})', bloco_completo, re.IGNORECASE)
+        m_tipo = re.search(r'Tipo\s+de\s+Lote\s*:\s*([^\n\r]+)', bloco_completo, re.IGNORECASE)
 
         preco_min = f"R$ {m_min.group(1)}" if m_min else "Não encontrado"
         preco_av  = f"R$ {m_av.group(1)}"  if m_av  else "Não encontrado"
         tipo      = m_tipo.group(1).strip() if m_tipo else ""
 
-        desc = bloco
+        # Limpeza cirúrgica da descrição pegando do número do lote para a frente
+        desc_bloco = text[start_pos:window_end]
+        desc = desc_bloco
         for pat in [
             r'Lote\s*(?:N[°º\.o]*)?\s*:\s*\d+',
             r'Tipo\s+de\s+Lote\s*:[^\n]+',
             r'Preço\s*Mínimo\s*\(R\$\)\s*:[^\n]+',
-            r'Avaliado\s+em\s*\(R\$\)\s*:[^\n]+',
+            r'Avaliado\s+(?:em\s*)?\(R\$\)\s*:[^\n]+',
             r'UA:\s*\d+.*?(?:\n|$)',
             r'Processo de Licitação:.*?(?:\n|$)',
             r'Relatório.*?(?:\n|$)',
@@ -95,12 +126,6 @@ def parse_relacao(text):
             r'CLIA\s*-[^\n]*(?:\n|$)',
             r'Fiel Depositário.*?(?:\n|$)',
             r'Página\s+\d+.*?(?:\n|$)',
-            r'ADM.*?(?:\n|$)',
-            r'DMA.*?(?:\n|$)',
-            r'DRF.*?(?:\n|$)',
-            r'ARF.*?(?:\n|$)',
-            r'TECA.*?(?:\n|$)',
-            r'DEPOSITO.*?(?:\n|$)',
             r'^\s*/\s*/\s*(?:\n|$)',
         ]:
             desc = re.sub(pat, ' ', desc, flags=re.IGNORECASE | re.MULTILINE)
@@ -118,11 +143,14 @@ def parse_relacao(text):
     return mapa
 
 
-# ─── PARSER: PROPOSTAS E LANCES (CAPTURADOR MULTILINHA BLINDADO) ──────────────
+# ─── 4. PARSER DE PROPOSTAS E LANCES (BUSCA INTEGRAL SEM LIMITE DE LINHA) ─────
 
 def parse_lances(text):
+    """
+    Recorta o arquivo de lances em blocos independentes por lote.
+    Mapeia o valor de arrematação ignorando quebras de linha intermediárias.
+    """
     mapa = {}
-    # Divide o arquivo de lances em grandes caixas por lote
     blocos = re.split(r'(?=Lote\s*:\s*\d+)', text, flags=re.IGNORECASE)
 
     for bloco in blocos:
@@ -133,25 +161,20 @@ def parse_lances(text):
             continue
         num = str(int(m_lote.group(1)))
 
-        # Captura o valor mesmo que existam quebras de linha entre o termo e o preço
-        m_val = re.search(r'Valor\s+de\s+Arrematação[\s\S]{0,150}?(\d{1,3}(?:\.\d{3})*,\d{2})', bloco, re.IGNORECASE)
+        # Captura o valor pulando qualquer linha criada pelo PDF (ex: Estado do Lote, Arrematante)
+        m_val = re.search(r'Valor\s+de\s+Arrematação\s*[\s\S]{0,250}?(\d{1,3}(?:\.\d{3})*,\d{2})', bloco, re.IGNORECASE)
         
         if m_val:
             mapa[num] = f"R$ {m_val.group(1)}"
         else:
-            if '-' in bloco and 'Encerrado' in bloco:
+            if 'encerrado' in bloco.lower() or 'não arrematado' in bloco.lower() or '-' in bloco:
                 mapa[num] = 'Não arrematado'
             else:
-                # Fallback secundário por proximidade monetária
-                valores_moeda = re.findall(r'\d{1,3}(?:\.\d{3})*,\d{2}', bloco)
-                if valores_moeda:
-                    mapa[num] = f"R$ {valores_moeda[0]}"
-                else:
-                    mapa[num] = 'Não arrematado'
+                mapa[num] = 'Sem informação / Lote ativo'
     return mapa
 
 
-# ─── ROTAS FLASK ─────────────────────────────────────────────────────────────
+# ─── 5. ROTAS FLASK ──────────────────────────────────────────────────────────
 
 @app.route('/')
 def index():
@@ -206,7 +229,7 @@ def upload_edital():
         mapa = parse_relacao(text)
 
         if not mapa:
-            return jsonify({"error": "Nenhum lote encontrado. Verifique se o arquivo é uma Relação de Lotes."}), 400
+            return jsonify({"error": "Nenhum lote encontrado. Certifique-se de que é um PDF válido de Relação de Lotes."}), 400
 
         resultado = [
             {
@@ -227,13 +250,13 @@ def upload_edital():
 @app.route('/upload_historico', methods=['POST'])
 def upload_historico():
     if 'file_relacao' not in request.files or 'file_lances' not in request.files:
-        return jsonify({"error": "Envie os dois arquivos: Relação de Lotes e Propostas/Lances."}), 400
+        return jsonify({"error": "Por favor, selecione ambos os arquivos requeridos."}), 400
 
     f_relacao = request.files['file_relacao']
     f_lances  = request.files['file_lances']
 
     try:
-        # Extração direta e linear (Super leve e veloz)
+        # Extração linear de altíssima velocidade e baixo consumo de memória
         text_relacao = extract_text(f_relacao)
         text_lances  = extract_text(f_lances)
 
@@ -241,7 +264,7 @@ def upload_historico():
         mapa_lances  = parse_lances(text_lances)
 
         if not mapa_relacao:
-            return jsonify({"error": "Nenhum lote encontrado na Relação de Lotes."}), 400
+            return jsonify({"error": "Nenhum lote mapeado na Relação de Lotes."}), 400
 
         resultado = []
         for num, d in mapa_relacao.items():
@@ -259,7 +282,7 @@ def upload_historico():
         return jsonify(resultado)
 
     except Exception as e:
-        return jsonify({"error": f"Erro ao processar: {str(e)}"}), 500
+        return jsonify({"error": f"Falha no processamento: {str(e)}"}), 500
 
 
 if __name__ == '__main__':
