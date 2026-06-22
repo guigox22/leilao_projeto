@@ -10,21 +10,24 @@ app.config['MAX_CONTENT_LENGTH'] = 150 * 1024 * 1024  # 150 MB
 # ─── EXTRAÇÃO DE TEXTO ───────────────────────────────────────────────────────
 
 def extract_text_from_bytes(data, filename=''):
-    """Extrai texto de PDF, DOCX ou TXT a partir de bytes."""
+    """
+    Extrai texto de PDF, DOCX ou TXT.
+    Usa pypdf por padrão (5x mais rápido que pdfplumber).
+    """
     name = filename.lower()
 
     if name.endswith('.pdf') or (not name and data[:4] == b'%PDF'):
         try:
-            import pdfplumber
+            from pypdf import PdfReader
+            reader = PdfReader(io.BytesIO(data))
             pages = []
-            with pdfplumber.open(io.BytesIO(data)) as pdf:
-                for page in pdf.pages:
-                    try:
-                        txt = page.extract_text()
-                        if txt:
-                            pages.append(txt)
-                    except Exception:
-                        continue
+            for page in reader.pages:
+                try:
+                    txt = page.extract_text()
+                    if txt:
+                        pages.append(txt)
+                except Exception:
+                    continue
             return '\n'.join(pages)
         except Exception:
             return ''
@@ -63,6 +66,10 @@ def split_pdf_bytes(data, pages_per_chunk=150):
 # ─── PARSER: RELAÇÃO DE LOTES ─────────────────────────────────────────────────
 
 def parse_relacao(text):
+    """
+    Extrai dados da Relação de Lotes.
+    Retorna dict: { '1': {preco_minimo, preco_avaliado, tipo, descricao}, ... }
+    """
     mapa = {}
     blocos = re.split(r'(?=Lote\s+N[°º\.o]*\s*:\s*\d+)', text, flags=re.IGNORECASE)
 
@@ -104,6 +111,10 @@ def parse_relacao(text):
             r'Página\s+\d+.*?(?:\n|$)',
             r'ADM.*?(?:\n|$)',
             r'DMA.*?(?:\n|$)',
+            r'DRF.*?(?:\n|$)',
+            r'ARF.*?(?:\n|$)',
+            r'TECA.*?(?:\n|$)',
+            r'DEPOSITO.*?(?:\n|$)',
             r'^\s*/\s*/\s*(?:\n|$)',
         ]:
             desc = re.sub(pat, ' ', desc, flags=re.IGNORECASE | re.MULTILINE)
@@ -125,16 +136,45 @@ def parse_relacao(text):
 # ─── PARSER: PROPOSTAS E LANCES ──────────────────────────────────────────────
 
 def parse_lances(text):
+    """
+    Extrai valores de arrematação do relatório de Propostas e Lances.
+
+    Estrutura pypdf (mais rápido):
+        Arrematante: licitante1713
+        Valor de Arrematação
+        Lote: 1
+        66.502,00        <- valor logo APÓS o número do lote
+        Estado do Lote: Encerrado
+
+    Estrutura pdfplumber (fallback):
+        Lote: 1 Estado do Lote: Encerrado
+        Arrematante: licitante1713
+        Valor de Arrematação 66.502,00  <- valor na mesma linha
+
+    Retorna dict: { '1': 'R$ 66.502,00', '6': 'Não arrematado', ... }
+    """
     mapa = {}
 
+    # Padrão pypdf: "Lote: X\n VALUE" (valor na linha seguinte ao lote)
     matches = re.findall(
-        r'Lote\s*:\s*(\d+)[^\n]*\n[^\n]*\nValor\s+de\s+Arrematação\s+([\d\.]+,\d{2}|-)',
+        r'Lote\s*:\s*(\d+)\s*\n\s*([\d\.]+,\d{2}|-)',
         text, re.IGNORECASE
     )
     for num, valor in matches:
         key = str(int(num))
         mapa[key] = 'Não arrematado' if valor.strip() == '-' else f'R$ {valor}'
 
+    # Padrão pdfplumber fallback: "Lote: X ...\n...\nValor de Arrematação VALUE"
+    if not mapa:
+        matches2 = re.findall(
+            r'Lote\s*:\s*(\d+)[^\n]*\n[^\n]*\nValor\s+de\s+Arrematação\s+([\d\.]+,\d{2}|-)',
+            text, re.IGNORECASE
+        )
+        for num, valor in matches2:
+            key = str(int(num))
+            mapa[key] = 'Não arrematado' if valor.strip() == '-' else f'R$ {valor}'
+
+    # Fallback final: zip entre todos os lotes e todos os valores de arrematação
     if not mapa:
         all_vals  = re.findall(r'Valor\s+de\s+Arrematação\s+([\d\.]+,\d{2}|-)', text, re.IGNORECASE)
         all_lotes = re.findall(r'Lote\s*:\s*(\d+)', text, re.IGNORECASE)
@@ -147,32 +187,30 @@ def parse_lances(text):
 
 # ─── PROCESSAMENTO COM SPLIT AUTOMÁTICO ──────────────────────────────────────
 
-def process_large_pdf(data, filename, parser_fn, pages_per_chunk=150):
+def process_large_pdf(data, filename, parser_fn, pages_per_chunk=200):
     """
-    Para PDFs grandes: divide em chunks, processa cada um e combina os resultados.
-    Retorna (mapa_combinado, total_paginas).
+    Divide PDFs grandes em chunks, processa cada um e combina os resultados.
+    Usa pypdf (rápido) para extração de texto.
     """
     try:
         from pypdf import PdfReader
         reader = PdfReader(io.BytesIO(data))
         total_pages = len(reader.pages)
     except Exception:
-        # Se não conseguir ler com pypdf, tenta direto
         text = extract_text_from_bytes(data, filename)
         return parser_fn(text), 0
 
     if total_pages <= pages_per_chunk:
-        # PDF pequeno — processa direto
         text = extract_text_from_bytes(data, filename)
         return parser_fn(text), total_pages
 
-    # PDF grande — divide e processa em chunks
+    # PDF grande — processa em chunks
     chunks, total = split_pdf_bytes(data, pages_per_chunk)
     mapa_final = {}
     for chunk_data in chunks:
-        text  = extract_text_from_bytes(chunk_data, filename)
+        text = extract_text_from_bytes(chunk_data, filename)
         chunk_mapa = parser_fn(text)
-        mapa_final.update(chunk_mapa)  # lotes de chunks posteriores sobrescrevem (correto)
+        mapa_final.update(chunk_mapa)
 
     return mapa_final, total
 
@@ -209,8 +247,7 @@ def dividir_pdf_route():
     nome = os.path.splitext(f.filename or 'arquivo')[0]
 
     try:
-        pgs_str = request.form.get('paginas', '150')
-        pgs_por_parte = int(pgs_str)
+        pgs_por_parte = int(request.form.get('paginas', '150'))
     except ValueError:
         pgs_por_parte = 150
 
@@ -222,7 +259,6 @@ def dividir_pdf_route():
     if len(chunks) == 1:
         return jsonify({"error": f"O PDF tem apenas {total} páginas — não precisa dividir!"}), 400
 
-    # Criar ZIP com todas as partes
     zip_buf = io.BytesIO()
     with zipfile.ZipFile(zip_buf, 'w', zipfile.ZIP_DEFLATED) as zf:
         for i, chunk in enumerate(chunks):
@@ -245,7 +281,7 @@ def upload_edital():
     data = f.read()
 
     try:
-        mapa, total_pages = process_large_pdf(data, f.filename or '', parse_relacao)
+        mapa, _ = process_large_pdf(data, f.filename or '', parse_relacao)
 
         if not mapa:
             return jsonify({"error": "Nenhum lote encontrado. Verifique se o arquivo é uma Relação de Lotes."}), 400
