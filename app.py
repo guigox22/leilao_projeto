@@ -7,47 +7,35 @@ from flask import Flask, render_template, request, jsonify, send_file
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 150 * 1024 * 1024  # 150 MB
 
-# ─── EXTRAÇÃO DE TEXTO ───────────────────────────────────────────────────────
+# ─── EXTRAÇÃO DE TEXTO DIRETA (ULTRA RÁPIDA E BAIXO CONSUMO) ─────────────────
 
-def extract_text_from_bytes(data, filename=''):
-    """
-    Extrai texto de PDF, DOCX ou TXT.
-    Usa pypdf por padrão (5x mais rápido que pdfplumber).
-    """
-    name = filename.lower()
+def extract_text(file_storage):
+    """Extrai o texto do arquivo diretamente da stream sem duplicar em memória"""
+    data = file_storage.read()
+    filename = (file_storage.filename or '').lower()
 
-    if name.endswith('.pdf') or (not name and data[:4] == b'%PDF'):
+    if filename.endswith('.pdf') or (data[:4] == b'%PDF'):
         try:
             from pypdf import PdfReader
             reader = PdfReader(io.BytesIO(data))
             pages = []
             for page in reader.pages:
-                try:
-                    txt = page.extract_text()
-                    if txt:
-                        pages.append(txt)
-                except Exception:
-                    continue
+                txt = page.extract_text()
+                if txt:
+                    pages.append(txt)
             return '\n'.join(pages)
         except Exception:
             return ''
-
-    elif name.endswith('.docx'):
+    elif filename.endswith('.docx'):
         from docx import Document
         doc = Document(io.BytesIO(data))
         return '\n'.join(p.text for p in doc.paragraphs)
-
     else:
         return data.decode('utf-8', errors='ignore')
 
 
-def extract_text(file_storage):
-    data = file_storage.read()
-    return extract_text_from_bytes(data, file_storage.filename or '')
-
-
 def split_pdf_bytes(data, pages_per_chunk=150):
-    """Divide um PDF em chunks e retorna lista de bytes."""
+    """Mantido puramente para a aba de Divisão manual de PDFs"""
     from pypdf import PdfReader, PdfWriter
     reader = PdfReader(io.BytesIO(data))
     total  = len(reader.pages)
@@ -66,15 +54,13 @@ def split_pdf_bytes(data, pages_per_chunk=150):
 # ─── PARSER: RELAÇÃO DE LOTES ─────────────────────────────────────────────────
 
 def parse_relacao(text):
-    """
-    Extrai dados da Relação de Lotes.
-    Retorna dict: { '1': {preco_minimo, preco_avaliado, tipo, descricao}, ... }
-    """
     mapa = {}
-    blocos = re.split(r'(?=Lote\s+N[°º\.o]*\s*:\s*\d+)', text, flags=re.IGNORECASE)
+    blocos = re.split(r'(?=Lote\s*(?:N[°º\.o]*)?\s*:\s*\d+)', text, flags=re.IGNORECASE)
 
     for bloco in blocos:
-        m = re.search(r'Lote\s+N[°º\.o]*\s*:\s*(\d+)', bloco, re.IGNORECASE)
+        if not bloco.strip():
+            continue
+        m = re.search(r'Lote\s*(?:N[°º\.o]*)?\s*:\s*(\d+)', bloco, re.IGNORECASE)
         if not m:
             continue
         num = str(int(m.group(1)))
@@ -89,7 +75,7 @@ def parse_relacao(text):
 
         desc = bloco
         for pat in [
-            r'Lote\s+N[°º\.o]*\s*:\s*\d+',
+            r'Lote\s*(?:N[°º\.o]*)?\s*:\s*\d+',
             r'Tipo\s+de\s+Lote\s*:[^\n]+',
             r'Preço\s*Mínimo\s*\(R\$\)\s*:[^\n]+',
             r'Avaliado\s+em\s*\(R\$\)\s*:[^\n]+',
@@ -129,93 +115,43 @@ def parse_relacao(text):
             'tipo':           tipo,
             'descricao':      desc or tipo or 'Ver edital completo.'
         }
-
     return mapa
 
 
-# ─── PARSER: PROPOSTAS E LANCES ──────────────────────────────────────────────
+# ─── PARSER: PROPOSTAS E LANCES (CAPTURADOR MULTILINHA BLINDADO) ──────────────
 
 def parse_lances(text):
-    """
-    Extrai valores de arrematação do relatório de Propostas e Lances.
-
-    Estrutura pypdf (mais rápido):
-        Arrematante: licitante1713
-        Valor de Arrematação
-        Lote: 1
-        66.502,00        <- valor logo APÓS o número do lote
-        Estado do Lote: Encerrado
-
-    Estrutura pdfplumber (fallback):
-        Lote: 1 Estado do Lote: Encerrado
-        Arrematante: licitante1713
-        Valor de Arrematação 66.502,00  <- valor na mesma linha
-
-    Retorna dict: { '1': 'R$ 66.502,00', '6': 'Não arrematado', ... }
-    """
     mapa = {}
+    # Divide o arquivo de lances em grandes caixas por lote
+    blocos = re.split(r'(?=Lote\s*:\s*\d+)', text, flags=re.IGNORECASE)
 
-    # Padrão pypdf: "Lote: X\n VALUE" (valor na linha seguinte ao lote)
-    matches = re.findall(
-        r'Lote\s*:\s*(\d+)\s*\n\s*([\d\.]+,\d{2}|-)',
-        text, re.IGNORECASE
-    )
-    for num, valor in matches:
-        key = str(int(num))
-        mapa[key] = 'Não arrematado' if valor.strip() == '-' else f'R$ {valor}'
+    for bloco in blocos:
+        if not bloco.strip():
+            continue
+        m_lote = re.search(r'Lote\s*:\s*(\d+)', bloco, re.IGNORECASE)
+        if not m_lote:
+            continue
+        num = str(int(m_lote.group(1)))
 
-    # Padrão pdfplumber fallback: "Lote: X ...\n...\nValor de Arrematação VALUE"
-    if not mapa:
-        matches2 = re.findall(
-            r'Lote\s*:\s*(\d+)[^\n]*\n[^\n]*\nValor\s+de\s+Arrematação\s+([\d\.]+,\d{2}|-)',
-            text, re.IGNORECASE
-        )
-        for num, valor in matches2:
-            key = str(int(num))
-            mapa[key] = 'Não arrematado' if valor.strip() == '-' else f'R$ {valor}'
-
-    # Fallback final: zip entre todos os lotes e todos os valores de arrematação
-    if not mapa:
-        all_vals  = re.findall(r'Valor\s+de\s+Arrematação\s+([\d\.]+,\d{2}|-)', text, re.IGNORECASE)
-        all_lotes = re.findall(r'Lote\s*:\s*(\d+)', text, re.IGNORECASE)
-        for lote, val in zip(all_lotes, all_vals):
-            key = str(int(lote))
-            mapa[key] = 'Não arrematado' if val.strip() == '-' else f'R$ {val}'
-
+        # Captura o valor mesmo que existam quebras de linha entre o termo e o preço
+        m_val = re.search(r'Valor\s+de\s+Arrematação[\s\S]{0,150}?(\d{1,3}(?:\.\d{3})*,\d{2})', bloco, re.IGNORECASE)
+        
+        if m_val:
+            mapa[num] = f"R$ {m_val.group(1)}"
+        else:
+            if '-' in bloco and 'Encerrado' in bloco:
+                mapa[num] = 'Não arrematado'
+            else:
+                # Fallback secundário por proximidade monetária
+                valores_moeda = re.findall(r'\d{1,3}(?:\.\d{3})*,\d{2}', bloco)
+                if valores_moeda:
+                    mapa[num] = f"R$ {valores_moeda[0]}"
+                else:
+                    mapa[num] = 'Não arrematado'
     return mapa
 
 
-# ─── PROCESSAMENTO COM SPLIT AUTOMÁTICO ──────────────────────────────────────
-
-def process_large_pdf(data, filename, parser_fn, pages_per_chunk=200):
-    """
-    Divide PDFs grandes em chunks, processa cada um e combina os resultados.
-    Usa pypdf (rápido) para extração de texto.
-    """
-    try:
-        from pypdf import PdfReader
-        reader = PdfReader(io.BytesIO(data))
-        total_pages = len(reader.pages)
-    except Exception:
-        text = extract_text_from_bytes(data, filename)
-        return parser_fn(text), 0
-
-    if total_pages <= pages_per_chunk:
-        text = extract_text_from_bytes(data, filename)
-        return parser_fn(text), total_pages
-
-    # PDF grande — processa em chunks
-    chunks, total = split_pdf_bytes(data, pages_per_chunk)
-    mapa_final = {}
-    for chunk_data in chunks:
-        text = extract_text_from_bytes(chunk_data, filename)
-        chunk_mapa = parser_fn(text)
-        mapa_final.update(chunk_mapa)
-
-    return mapa_final, total
-
-
-# ─── ROTAS ───────────────────────────────────────────────────────────────────
+# ─── ROTAS FLASK ─────────────────────────────────────────────────────────────
 
 @app.route('/')
 def index():
@@ -227,19 +163,14 @@ def extrair_pdf():
     if 'file' not in request.files:
         return jsonify({"error": "Nenhum arquivo enviado"}), 400
     f = request.files['file']
-    if not f.filename.lower().endswith('.pdf'):
-        return jsonify({"error": "Envie um arquivo PDF (.pdf)"}), 400
-
     text = extract_text(f)
     if not text.strip():
         return jsonify({"error": "Não foi possível extrair texto deste PDF."}), 500
-
     return jsonify({"texto": text, "linhas": text.count('\n') + 1})
 
 
 @app.route('/dividir_pdf', methods=['POST'])
 def dividir_pdf_route():
-    """Divide um PDF grande em partes menores e retorna um ZIP para download."""
     if 'file' not in request.files:
         return jsonify({"error": "Nenhum arquivo enviado"}), 400
     f    = request.files['file']
@@ -248,10 +179,6 @@ def dividir_pdf_route():
 
     try:
         pgs_por_parte = int(request.form.get('paginas', '150'))
-    except ValueError:
-        pgs_por_parte = 150
-
-    try:
         chunks, total = split_pdf_bytes(data, pgs_por_parte)
     except Exception as e:
         return jsonify({"error": f"Erro ao dividir: {str(e)}"}), 500
@@ -265,23 +192,18 @@ def dividir_pdf_route():
             zf.writestr(f"{nome}_parte{i+1:02d}.pdf", chunk)
     zip_buf.seek(0)
 
-    return send_file(
-        zip_buf,
-        mimetype='application/zip',
-        as_attachment=True,
-        download_name=f"{nome}_dividido.zip"
-    )
+    return send_file(zip_buf, mimetype='application/zip', as_attachment=True, download_name=f"{nome}_dividido.zip")
 
 
 @app.route('/upload', methods=['POST'])
 def upload_edital():
     if 'file' not in request.files:
         return jsonify({"error": "Nenhum arquivo enviado"}), 400
-    f    = request.files['file']
-    data = f.read()
+    f = request.files['file']
 
     try:
-        mapa, _ = process_large_pdf(data, f.filename or '', parse_relacao)
+        text = extract_text(f)
+        mapa = parse_relacao(text)
 
         if not mapa:
             return jsonify({"error": "Nenhum lote encontrado. Verifique se o arquivo é uma Relação de Lotes."}), 400
@@ -298,7 +220,6 @@ def upload_edital():
         ]
         resultado.sort(key=lambda x: int(x['lote']) if x['lote'].isdigit() else 999)
         return jsonify(resultado)
-
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -312,18 +233,19 @@ def upload_historico():
     f_lances  = request.files['file_lances']
 
     try:
-        data_relacao = f_relacao.read()
-        data_lances  = f_lances.read()
+        # Extração direta e linear (Super leve e veloz)
+        text_relacao = extract_text(f_relacao)
+        text_lances  = extract_text(f_lances)
 
-        mapa_relacao, _ = process_large_pdf(data_relacao, f_relacao.filename or '', parse_relacao)
-        mapa_lances,  _ = process_large_pdf(data_lances,  f_lances.filename  or '', parse_lances)
+        mapa_relacao = parse_relacao(text_relacao)
+        mapa_lances  = parse_lances(text_lances)
 
         if not mapa_relacao:
             return jsonify({"error": "Nenhum lote encontrado na Relação de Lotes."}), 400
 
         resultado = []
         for num, d in mapa_relacao.items():
-            arr = mapa_lances.get(num, 'Sem informação')
+            arr = mapa_lances.get(num, 'Não arrematado')
             resultado.append({
                 "lote":             num,
                 "tipo":             d['tipo'],
