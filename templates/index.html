@@ -212,6 +212,9 @@ tr.row-nao-arrematado:hover td{background:#fef3c7}
     <button class="tab-btn" onclick="switchTab('extrator')">
       <span class="tab-icon">📄</span> Extrair PDF
     </button>
+    <button class="tab-btn" onclick="switchTab('divisor')">
+      <span class="tab-icon">✂️</span> Dividir PDF
+    </button>
   </div>
 
   <!-- ═══════════════ PAINEL: EDITAL ATUAL ═══════════════ -->
@@ -244,52 +247,24 @@ tr.row-nao-arrematado:hover td{background:#fef3c7}
   <!-- ═══════════════ PAINEL: HISTÓRICO ═══════════════ -->
   <div class="panel" id="panel-historico">
 
-    <div class="section-title">Comparativo Histórico</div>
-    <div class="section-sub">Compare dois relatórios para ver por quanto cada lote foi arrematado.</div>
-
-    <div class="steps">
-      <div class="step">
-        <div class="step-num">1</div>
-        <div class="step-text"><strong>Relação de Lotes</strong>Contém os lotes, descrições e preços mínimos do edital.</div>
-      </div>
-      <div class="step">
-        <div class="step-num">2</div>
-        <div class="step-text"><strong>Propostas e Lances</strong>Contém os lances e o valor final de arrematação.</div>
-      </div>
-      <div class="step">
-        <div class="step-num">3</div>
-        <div class="step-text"><strong>Resultado cruzado</strong>Ver preço mínimo, avaliado e valor arrematado lado a lado.</div>
-      </div>
-    </div>
+    <div class="section-title">Extrato de Leilão</div>
+    <div class="section-sub">Faça upload do <strong>Extrato do Leilão</strong> (PDF da Receita Federal) para visualizar e exportar os dados de arrematação.</div>
 
     <div class="card">
-      <div class="upload-grid">
-        <div>
-          <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:8px">📋 Relação de Lotes</div>
-          <div class="upload-zone" id="zone-relacao" ondragover="onDrag(event,this)" ondragleave="offDrag(this)" ondrop="onDrop(event,this,'file-relacao')">
-            <input type="file" id="file-relacao" accept=".pdf,.txt,.docx" onchange="onFileChange(this,'zone-relacao','name-relacao')">
-            <div class="upload-icon">📋</div>
-            <div class="upload-title">Relação de Lotes</div>
-            <div class="upload-hint">PDF, TXT ou DOCX</div>
-            <div class="upload-filename" id="name-relacao"></div>
-          </div>
+      <div style="max-width:480px">
+        <div class="upload-zone" id="zone-extrato" ondragover="onDrag(event,this)" ondragleave="offDrag(this)" ondrop="onDrop(event,this,'file-extrato')">
+          <input type="file" id="file-extrato" accept=".pdf,.txt" onchange="onFileChange(this,'zone-extrato','name-extrato')">
+          <div class="upload-icon">📑</div>
+          <div class="upload-title">Arraste ou clique para selecionar</div>
+          <div class="upload-hint">Extrato do Leilão · PDF da Receita Federal</div>
+          <div class="upload-filename" id="name-extrato"></div>
         </div>
-        <div>
-          <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:8px">📊 Propostas e Lances</div>
-          <div class="upload-zone" id="zone-lances" ondragover="onDrag(event,this)" ondragleave="offDrag(this)" ondrop="onDrop(event,this,'file-lances')">
-            <input type="file" id="file-lances" accept=".pdf,.txt,.docx" onchange="onFileChange(this,'zone-lances','name-lances')">
-            <div class="upload-icon">📊</div>
-            <div class="upload-title">Propostas e Lances</div>
-            <div class="upload-hint">PDF, TXT ou DOCX</div>
-            <div class="upload-filename" id="name-lances"></div>
-          </div>
+        <div class="btn-row">
+          <button class="btn btn-primary" onclick="analisarExtrato()" id="btn-extrato">
+            <span>🔍</span> Processar Extrato
+          </button>
+          <button class="btn btn-secondary btn-sm" onclick="limpar('historico')">↺ Limpar</button>
         </div>
-      </div>
-      <div class="btn-row">
-        <button class="btn btn-primary" onclick="analisarHistorico()" id="btn-historico">
-          <span>🔀</span> Comparar Leilão
-        </button>
-        <button class="btn btn-secondary btn-sm" onclick="limpar('historico')">↺ Limpar</button>
       </div>
     </div>
 
@@ -320,6 +295,59 @@ tr.row-nao-arrematado:hover td{background:#fef3c7}
     </div>
 
     <div id="resultado-extrator"></div>
+  </div>
+
+
+  <!-- ═══════════════ PAINEL: DIVISOR DE PDF ═══════════════ -->
+  <div class="panel" id="panel-divisor">
+
+    <div class="section-title">Divisor de PDF</div>
+    <div class="section-sub">PDFs com muitas páginas podem ser divididos aqui antes de processar. O site faz o download das partes prontas para upload.</div>
+
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-text"><strong>Faça upload do PDF grande</strong>O site detecta quantas páginas tem.</div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-text"><strong>Escolha o tamanho</strong>Recomendado: 150 páginas por parte (~15s de processamento).</div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-text"><strong>Baixe o ZIP</strong>Extraia e faça upload de cada parte nas abas de análise.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div style="max-width:520px">
+        <div class="upload-zone" id="zone-divisor" ondragover="onDrag(event,this)" ondragleave="offDrag(this)" ondrop="onDrop(event,this,'file-divisor')">
+          <input type="file" id="file-divisor" accept=".pdf" onchange="onFileChange(this,'zone-divisor','name-divisor')">
+          <div class="upload-icon">✂️</div>
+          <div class="upload-title">Arraste ou clique para selecionar</div>
+          <div class="upload-hint">Somente arquivos PDF</div>
+          <div class="upload-filename" id="name-divisor"></div>
+        </div>
+
+        <div style="margin-top:1rem;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <label style="font-size:12px;font-weight:600;color:var(--text)">Páginas por parte:</label>
+          <select id="pgs-parte" style="padding:7px 12px;border:1px solid var(--border2);border-radius:7px;font-size:13px;background:var(--bg2);color:var(--text);font-family:'Inter',sans-serif">
+            <option value="100">100 páginas (~10s)</option>
+            <option value="150" selected>150 páginas (~15s) ✓ Recomendado</option>
+            <option value="200">200 páginas (~20s)</option>
+            <option value="300">300 páginas (~30s)</option>
+          </select>
+        </div>
+
+        <div class="btn-row">
+          <button class="btn btn-primary" onclick="dividirPDF()" id="btn-divisor">
+            <span>✂️</span> Dividir e Baixar ZIP
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div id="resultado-divisor"></div>
   </div>
 
 </div><!-- /container -->
@@ -409,7 +437,7 @@ async function analisarEdital() {
 
   const btn = document.getElementById('btn-edital');
   btn.disabled = true; btn.textContent = '⏳ Analisando...';
-  showLoading('resultado-edital', 'Processando Relação de Lotes…');
+  showLoading('resultado-edital', 'Processando PDF… PDFs grandes (100+ páginas) podem levar até 2 minutos.');
 
   const fd = new FormData();
   fd.append('file', input.files[0]);
@@ -464,116 +492,167 @@ function renderEdital(lotes) {
   window.__editalData = lotes;
 }
 
-// ─── COMPARATIVO HISTÓRICO ───────────────────────────────────────────────────
-async function analisarHistorico() {
-  const fRel = document.getElementById('file-relacao');
-  const fLan = document.getElementById('file-lances');
-  if (!fRel.files.length || !fLan.files.length) {
-    alert('Selecione os dois arquivos antes de continuar.'); return;
-  }
+// ─── EXTRATO DE LEILÃO ───────────────────────────────────────────────────────
+async function analisarExtrato() {
+  const input = document.getElementById('file-extrato');
+  if (!input.files.length) { alert('Selecione o PDF do Extrato primeiro.'); return; }
 
-  const btn = document.getElementById('btn-historico');
-  btn.disabled = true; btn.textContent = '⏳ Processando…';
-  showLoading('resultado-historico', 'Cruzando dados dos dois relatórios…');
+  const btn = document.getElementById('btn-extrato');
+  btn.disabled = true; btn.innerHTML = '⏳ Processando…';
+  showLoading('resultado-historico', 'Lendo o Extrato do Leilão…');
 
   const fd = new FormData();
-  fd.append('file_relacao', fRel.files[0]);
-  fd.append('file_lances',  fLan.files[0]);
+  fd.append('file', input.files[0]);
 
   try {
-    const res = await fetch('/upload_historico', { method:'POST', body: fd });
+    const res  = await fetch('/upload_extrato', { method: 'POST', body: fd });
     const data = await res.json();
     if (data.error) { showError('resultado-historico', data.error); return; }
-    renderHistorico(data);
+    renderExtrato(data);
   } catch(e) {
     showError('resultado-historico', 'Erro de conexão: ' + e.message);
   } finally {
-    btn.disabled = false; btn.innerHTML = '<span>🔀</span> Comparar Leilão';
+    btn.disabled = false; btn.innerHTML = '<span>🔍</span> Processar Extrato';
   }
 }
 
-function renderHistorico(lotes) {
-  const total     = lotes.length;
-  const arrematados = lotes.filter(l => l.valor_arrematado !== 'Não arrematado' && l.valor_arrematado !== 'Sem informação');
-  const naoArr    = lotes.filter(l => l.valor_arrematado === 'Não arrematado');
+function renderExtrato(lotes) {
+  window.__extratoData = lotes;
 
-  // Total arrematado
+  const total      = lotes.length;
+  const excluidos  = lotes.filter(l => l.arrematante === 'Lote Excluído').length;
+  const arrematados = total - excluidos;
+
   let totalVal = 0;
-  arrematados.forEach(l => {
-    const n = parseFloat((l.valor_arrematado || '').replace('R$ ','').replace(/\./g,'').replace(',','.'));
-    if (!isNaN(n)) totalVal += n;
+  lotes.forEach(l => {
+    if (l.valor && l.valor !== '—') {
+      const n = parseFloat(l.valor.replace('R$ ','').replace(/\./g,'').replace(',','.'));
+      if (!isNaN(n)) totalVal += n;
+    }
   });
 
   const stats = `
     <div class="stats-bar">
-      <div class="stat blue"><div class="stat-value">${total}</div><div class="stat-label">Total de lotes</div></div>
-      <div class="stat green"><div class="stat-value">${arrematados.length}</div><div class="stat-label">Arrematados</div></div>
-      <div class="stat amber"><div class="stat-value">${naoArr.length}</div><div class="stat-label">Não arrematados</div></div>
+      <div class="stat blue"><div class="stat-value">${total}</div><div class="stat-label">Total de Lotes</div></div>
+      <div class="stat green"><div class="stat-value">${arrematados}</div><div class="stat-label">Arrematados</div></div>
+      ${excluidos > 0 ? `<div class="stat amber"><div class="stat-value">${excluidos}</div><div class="stat-label">Excluídos</div></div>` : ''}
       <div class="stat blue">
         <div class="stat-value" style="font-size:14px">
           ${totalVal > 0 ? 'R$ ' + totalVal.toLocaleString('pt-BR',{minimumFractionDigits:2}) : '—'}
         </div>
-        <div class="stat-label">Total arrematado</div>
+        <div class="stat-label">Total Arrematado</div>
       </div>
     </div>`;
 
   const rows = lotes.map(l => {
-    const isArr  = l.valor_arrematado !== 'Não arrematado' && l.valor_arrematado !== 'Sem informação';
-    const isNao  = l.valor_arrematado === 'Não arrematado';
-    const rowCls = isArr ? 'row-arrematado' : isNao ? 'row-nao-arrematado' : '';
-    
-    let badge = '';
-    if (isArr)       badge = `<span class="badge badge-green">✓ Arrematado</span>`;
-    else if (isNao)  badge = `<span class="badge badge-amber">✗ Não arrematado</span>`;
-    else             badge = `<span class="badge badge-gray">Sem info</span>`;
-
-    // Calc diferença entre preço mínimo e arrematado
-    let diffHtml = '';
-    if (isArr) {
-      const min = parseFloat((l.preco_minimo || '').replace('R$ ','').replace(/\./g,'').replace(',','.'));
-      const arr = parseFloat((l.valor_arrematado || '').replace('R$ ','').replace(/\./g,'').replace(',','.'));
-      if (!isNaN(min) && !isNaN(arr)) {
-        const diff = ((arr - min) / min * 100).toFixed(0);
-        const cls  = diff >= 0 ? 'green' : 'red';
-        diffHtml   = `<span style="color:var(--${cls});font-size:10px;font-weight:600">${diff >= 0 ? '+' : ''}${diff}%</span>`;
-      }
-    }
-
+    const excl = l.arrematante === 'Lote Excluído';
     return `
-      <tr class="${rowCls}">
+      <tr class="${excl ? 'row-nao-arrematado' : 'row-arrematado'}">
         <td class="td-lote">${l.lote}</td>
-        <td class="td-tipo">${l.tipo || '—'}</td>
-        <td class="td-valor">${l.preco_minimo}</td>
-        <td class="td-valor">${l.preco_avaliado}</td>
-        <td class="td-valor">
-          ${l.valor_arrematado}<br>${diffHtml}
-        </td>
-        <td>${badge}</td>
-        <td class="td-desc">${l.descricao}</td>
+        <td style="font-size:12px;color:var(--text)">${l.arrematante}</td>
+        <td class="td-valor">${l.valor}</td>
       </tr>`;
   }).join('');
 
   document.getElementById('resultado-historico').innerHTML = `
     ${stats}
     <div class="card" style="padding:0">
-      <div style="padding:1rem 1.25rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
-        <span style="font-size:13px;font-weight:600">${total} lote${total > 1 ? 's' : ''} cruzado${total > 1 ? 's' : ''}</span>
-        <button class="btn btn-success btn-sm" onclick="exportCSV(window.__histData,'leilao_historico')">
-          📥 Exportar CSV
-        </button>
+      <div style="padding:1rem 1.25rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+        <span style="font-size:13px;font-weight:600">${total} lote${total !== 1 ? 's' : ''} encontrado${total !== 1 ? 's' : ''}</span>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-success btn-sm" onclick="exportExcelExtrato()">📊 Emitir Excel</button>
+        </div>
       </div>
       <div class="table-wrap">
         <table>
           <thead><tr>
-            <th>Lote</th><th>Tipo</th><th>Preço Mínimo</th><th>Avaliado</th>
-            <th>Valor Arrematado</th><th>Status</th><th>Descrição</th>
+            <th>Lote</th><th>Arrematante</th><th>Valor Arrematação</th>
           </tr></thead>
           <tbody>${rows}</tbody>
         </table>
       </div>
     </div>`;
+}
 
-  window.__histData = lotes;
+function exportExcelExtrato() {
+  const data = window.__extratoData;
+  if (!data || !data.length) { alert('Nenhum dado para exportar.'); return; }
+
+  // Carrega SheetJS dinamicamente se necessário
+  if (typeof XLSX === 'undefined') {
+    const script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    script.onload = () => gerarExcel(data);
+    document.head.appendChild(script);
+  } else {
+    gerarExcel(data);
+  }
+}
+
+function gerarExcel(data) {
+  // ── Calcula totais para o cabeçalho ──
+  const excluidos   = data.filter(l => l.arrematante === 'Lote Excluído').length;
+  const arrematados = data.length - excluidos;
+  let totalVal = 0;
+  data.forEach(l => {
+    if (l.valor && l.valor !== '—') {
+      const n = parseFloat(l.valor.replace('R$ ','').replace(/\./g,'').replace(',','.'));
+      if (!isNaN(n)) totalVal += n;
+    }
+  });
+
+  const wb = XLSX.utils.book_new();
+  const wsData = [];
+
+  // ── Linha de título ──
+  wsData.push(['EXTRATO DE LEILÃO — Receita Federal do Brasil']);
+  wsData.push([`Emitido em: ${new Date().toLocaleString('pt-BR')}`]);
+  wsData.push([
+    `Total de lotes: ${data.length}`,
+    `Arrematados: ${arrematados}`,
+    `Total Geral: R$ ${totalVal.toLocaleString('pt-BR', {minimumFractionDigits:2})}`
+  ]);
+  wsData.push([]); // linha em branco
+
+  // ── Cabeçalho da tabela ──
+  wsData.push(['Lote', 'Arrematante', 'Valor Arrematação (R$)']);
+
+  // ── Dados ──
+  data.forEach(l => {
+    // Converte valor para número puro (sem "R$ ") para que o Excel trate como número
+    let valorNum = l.valor;
+    if (valorNum && valorNum !== '—') {
+      const n = parseFloat(valorNum.replace('R$ ','').replace(/\./g,'').replace(',','.'));
+      valorNum = isNaN(n) ? l.valor : n;
+    }
+    wsData.push([
+      parseInt(l.lote) || l.lote,
+      l.arrematante,
+      valorNum
+    ]);
+  });
+
+  // ── Linha de total ao final ──
+  wsData.push([]);
+  wsData.push(['', 'TOTAL GERAL', totalVal]);
+
+  const ws = XLSX.utils.aoa_to_sheet(wsData);
+
+  // ── Larguras das colunas ──
+  ws['!cols'] = [
+    { wch: 8  },  // Lote
+    { wch: 52 },  // Arrematante
+    { wch: 24 },  // Valor
+  ];
+
+  // ── Mescla título nas 3 colunas ──
+  ws['!merges'] = [
+    { s: { r: 0, c: 0 }, e: { r: 0, c: 2 } },  // título
+    { s: { r: 1, c: 0 }, e: { r: 1, c: 2 } },  // data
+  ];
+
+  XLSX.utils.book_append_sheet(wb, ws, 'Extrato do Leilão');
+  XLSX.writeFile(wb, 'extrato_leilao.xlsx');
 }
 
 // ─── EXTRAIR PDF ─────────────────────────────────────────────────────────────
@@ -634,6 +713,56 @@ function exportCSV(data, filename) {
   a.download = filename + '.csv';
   a.click();
   URL.revokeObjectURL(url);
+}
+
+// ─── DIVISOR DE PDF ──────────────────────────────────────────────────────────
+async function dividirPDF() {
+  const input = document.getElementById('file-divisor');
+  if (!input.files.length) { alert('Selecione um PDF primeiro.'); return; }
+
+  const btn = document.getElementById('btn-divisor');
+  btn.disabled = true; btn.textContent = '⏳ Dividindo…';
+  showLoading('resultado-divisor', 'Dividindo o PDF em partes…');
+
+  const fd  = new FormData();
+  const pgs = document.getElementById('pgs-parte').value;
+  fd.append('file', input.files[0]);
+  fd.append('paginas', pgs);
+
+  try {
+    const res = await fetch('/dividir_pdf', { method:'POST', body: fd });
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({error: 'Erro desconhecido'}));
+      showError('resultado-divisor', data.error || 'Erro ao dividir PDF.');
+      return;
+    }
+
+    // Baixar o ZIP automaticamente
+    const blob     = await res.blob();
+    const filename = (res.headers.get('Content-Disposition') || '').match(/filename="?([^"]+)"?/)?.[1] || 'partes.zip';
+    const url = URL.createObjectURL(blob);
+    const a   = document.createElement('a');
+    a.href = url; a.download = filename; a.click();
+    URL.revokeObjectURL(url);
+
+    document.getElementById('resultado-divisor').innerHTML = `
+      <div class="card" style="border-color:#16a34a">
+        <div style="display:flex;align-items:center;gap:10px;color:#15803d">
+          <span style="font-size:20px">✅</span>
+          <div>
+            <div style="font-weight:600;font-size:14px">ZIP baixado com sucesso!</div>
+            <div style="font-size:12px;margin-top:3px;color:var(--muted)">
+              Extraia o ZIP e faça upload de cada parte nas abas <strong>Edital Atual</strong> ou <strong>Comparativo Histórico</strong>.
+            </div>
+          </div>
+        </div>
+      </div>`;
+  } catch(e) {
+    showError('resultado-divisor', 'Erro: ' + e.message);
+  } finally {
+    btn.disabled = false; btn.innerHTML = '<span>✂️</span> Dividir e Baixar ZIP';
+  }
 }
 </script>
 </body>

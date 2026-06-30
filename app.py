@@ -256,7 +256,6 @@ def upload_historico():
     f_lances  = request.files['file_lances']
 
     try:
-        # Extração linear de altíssima velocidade e baixo consumo de memória
         text_relacao = extract_text(f_relacao)
         text_lances  = extract_text(f_lances)
 
@@ -283,6 +282,119 @@ def upload_historico():
 
     except Exception as e:
         return jsonify({"error": f"Falha no processamento: {str(e)}"}), 500
+
+
+# ─── 6. PARSER DE EXTRATO DE LEILÃO (LOTE · ARREMATANTE · VALOR) ─────────────
+
+def parse_extrato(text):
+    """
+    Lê o Extrato do Leilão da Receita Federal.
+    Formato de cada linha: <Lote>  <CNPJ/CPF>  [Valor]  <Arrematante>  [Valor]
+    Casos tratados:
+      - Valor ANTES do nome (PDF quebra a linha assim em ~30% dos casos)
+      - Valor DEPOIS do nome (caso mais comum)
+      - Lote Excluído
+      - Nome do arrematante continua na próxima linha
+    """
+    linhas = text.splitlines()
+    resultado = []
+    i = 0
+
+    pat_lote  = re.compile(r'^\s*(\d{1,4})\s+')
+    pat_cnpj  = re.compile(
+        r'\d{2}\.?\d{3}\.?\d{3}/\d{4}-\d{2}'   # CNPJ formatado
+        r'|\*{3}\.\d{3}\.\d{3}-\*{2}'            # CPF mascarado
+        r'|\b\d{11}\b'                             # CPF numérico puro
+    )
+    pat_valor = re.compile(r'\b(\d{1,3}(?:\.\d{3})*,\d{2})\b')
+    pat_excl  = re.compile(r'Lote\s+Exclu[íi]do', re.IGNORECASE)
+    pat_skip  = re.compile(
+        r'^(Lote\b|CNPJ|Arrematante|Valor\s+Arr|Relat|Edital|MINIST|SECRET|FEDERAL|P[áa]gina\s+\d|Data:)',
+        re.IGNORECASE
+    )
+
+    while i < len(linhas):
+        linha = linhas[i].strip()
+        i += 1
+
+        if not linha:
+            continue
+
+        m_lote = pat_lote.match(linha)
+        if not m_lote:
+            continue
+
+        num = str(int(m_lote.group(1)))
+
+        # Lote excluído
+        if pat_excl.search(linha):
+            resultado.append({"lote": num, "arrematante": "Lote Excluído", "valor": "—"})
+            continue
+
+        # Precisa ter CNPJ/CPF para ser linha de dados
+        if not pat_cnpj.search(linha):
+            continue
+
+        # Remove o número do lote e o CNPJ/CPF; fica só nome + valor(es)
+        resto = linha[m_lote.end():]
+        resto = pat_cnpj.sub(' ', resto)
+
+        # Coleta todos os valores numéricos encontrados no resto
+        valores_encontrados = pat_valor.findall(resto)
+
+        # Remove os valores do texto para isolar o nome
+        nome_limpo = pat_valor.sub(' ', resto).strip(' ,;-/')
+        nome_limpo = re.sub(r'\s{2,}', ' ', nome_limpo).strip()
+
+        # Verifica se o nome continua na linha seguinte
+        if i < len(linhas):
+            prox = linhas[i].strip()
+            # Linha de continuação: não começa com número de lote, sem CNPJ e não é cabeçalho
+            if (prox
+                    and not pat_lote.match(prox)
+                    and not pat_cnpj.search(prox)
+                    and not pat_skip.match(prox)
+                    and not pat_excl.search(prox)
+                    and len(prox) > 2):
+                # Complemento do nome
+                complemento = pat_valor.sub(' ', prox).strip()
+                complemento = re.sub(r'\s{2,}', ' ', complemento).strip()
+                if complemento:
+                    nome_limpo = (nome_limpo + ' ' + complemento).strip()
+                i += 1  # consome a linha de continuação
+
+        # Escolhe o valor: pega o MAIOR entre os encontrados
+        # (evita pegar IDs numéricos menores como valor)
+        valor_str = "—"
+        if valores_encontrados:
+            def to_float(v):
+                return float(v.replace('.', '').replace(',', '.'))
+            maior = max(valores_encontrados, key=to_float)
+            valor_str = f"R$ {maior}"
+
+        resultado.append({
+            "lote":        num,
+            "arrematante": nome_limpo or "—",
+            "valor":       valor_str
+        })
+
+    resultado.sort(key=lambda x: int(x['lote']) if x['lote'].isdigit() else 9999)
+    return resultado
+
+
+@app.route('/upload_extrato', methods=['POST'])
+def upload_extrato():
+    if 'file' not in request.files:
+        return jsonify({"error": "Nenhum arquivo enviado"}), 400
+    f = request.files['file']
+    try:
+        text = extract_text(f)
+        dados = parse_extrato(text)
+        if not dados:
+            return jsonify({"error": "Nenhum lote encontrado. Verifique se é um Extrato de Leilão válido."}), 400
+        return jsonify(dados)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 if __name__ == '__main__':
