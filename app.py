@@ -289,93 +289,67 @@ def upload_historico():
 def parse_extrato(text):
     """
     Lê o Extrato do Leilão da Receita Federal.
-    Formato de cada linha: <Lote>  <CNPJ/CPF>  [Valor]  <Arrematante>  [Valor]
-    Casos tratados:
-      - Valor ANTES do nome (PDF quebra a linha assim em ~30% dos casos)
-      - Valor DEPOIS do nome (caso mais comum)
-      - Lote Excluído
-      - Nome do arrematante continua na próxima linha
-    """
-    linhas = text.splitlines()
-    resultado = []
-    i = 0
 
-    pat_lote  = re.compile(r'^\s*(\d{1,4})\s+')
-    pat_cnpj  = re.compile(
+    Formato real observado neste relatório: o Valor de Arrematação vem
+    COLADO (sem espaço) ao número do Lote, por exemplo:
+        "5.000,001 51.781.446/0001-31 GABI VEICULOS E PECAS LTDA"
+        → valor = 5.000,00 | lote = 1 | cnpj = 51.781.446/0001-31 | nome = GABI VEICULOS E PECAS LTDA
+
+    Em alguns casos o CNPJ/CPF aparece duplicado em formato numérico puro
+    logo antes do nome (ex: "61.453.685/0001-16 61.453.685 GIULLY..."), e o
+    nome do arrematante pode continuar na linha seguinte.
+
+    Casos tratados:
+      - Valor colado ao Lote (caso padrão deste relatório)
+      - Lote Excluído (sem valor, ex: "76 Lote Excluído")
+      - ID numérico duplicado antes do nome
+      - Nome do arrematante quebrado em múltiplas linhas
+    """
+    pat_cnpj = re.compile(
         r'\d{2}\.?\d{3}\.?\d{3}/\d{4}-\d{2}'   # CNPJ formatado
         r'|\*{3}\.\d{3}\.\d{3}-\*{2}'            # CPF mascarado
-        r'|\b\d{11}\b'                             # CPF numérico puro
     )
-    pat_valor = re.compile(r'\b(\d{1,3}(?:\.\d{3})*,\d{2})\b')
-    pat_excl  = re.compile(r'Lote\s+Exclu[íi]do', re.IGNORECASE)
-    pat_skip  = re.compile(
-        r'^(Lote\b|CNPJ|Arrematante|Valor\s+Arr|Relat|Edital|MINIST|SECRET|FEDERAL|P[áa]gina\s+\d|Data:)',
-        re.IGNORECASE
-    )
+    pat_repeat_id = re.compile(r'^\s*\d{2}(?:\.\d{3}){2}\s+')  # ID numérico repetido antes do nome
 
-    while i < len(linhas):
-        linha = linhas[i].strip()
-        i += 1
+    # Marca o início de cada lançamento: valor colado ao número do lote
+    entry_valor = re.compile(r'(\d{1,3}(?:\.\d{3})*,\d{2})(\d{1,4})(?=\s)')
+    # Marca lançamentos de lote excluído
+    entry_excl = re.compile(r'(?<!\d)(\d{1,4})\s+Lote\s+Exclu[íi]do', re.IGNORECASE)
 
-        if not linha:
-            continue
+    starts = []
+    for m in entry_valor.finditer(text):
+        starts.append((m.start(), m.end(), 'valor', m.group(1), m.group(2)))
+    for m in entry_excl.finditer(text):
+        starts.append((m.start(), m.end(), 'excluido', None, m.group(1)))
+    starts.sort(key=lambda x: x[0])
 
-        m_lote = pat_lote.match(linha)
-        if not m_lote:
-            continue
+    resultado = []
+    for idx, (start, end, tipo, valor, lote) in enumerate(starts):
+        num = str(int(lote))
 
-        num = str(int(m_lote.group(1)))
-
-        # Lote excluído
-        if pat_excl.search(linha):
+        if tipo == 'excluido':
             resultado.append({"lote": num, "arrematante": "Lote Excluído", "valor": "—"})
             continue
 
-        # Precisa ter CNPJ/CPF para ser linha de dados
-        if not pat_cnpj.search(linha):
-            continue
+        end_pos = starts[idx + 1][0] if idx + 1 < len(starts) else len(text)
+        bloco = text[end:end_pos]
 
-        # Remove o número do lote e o CNPJ/CPF; fica só nome + valor(es)
-        resto = linha[m_lote.end():]
-        resto = pat_cnpj.sub(' ', resto)
+        m_cnpj = pat_cnpj.search(bloco)
+        resto = bloco[m_cnpj.end():] if m_cnpj else bloco
 
-        # Coleta todos os valores numéricos encontrados no resto
-        valores_encontrados = pat_valor.findall(resto)
+        # Remove eventual ID numérico repetido antes do nome (ex: "61.453.685 GIULLY...")
+        resto = pat_repeat_id.sub(' ', resto)
 
-        # Remove os valores do texto para isolar o nome
-        nome_limpo = pat_valor.sub(' ', resto).strip(' ,;-/')
-        nome_limpo = re.sub(r'\s{2,}', ' ', nome_limpo).strip()
+        # No último lote do documento, corta qualquer rodapé que tenha vazado
+        # (ex: "Total Geral 31.738.928,00", "Página X de Y")
+        resto = re.split(r'Total\s+Geral|P[áa]gina\s+\d', resto, flags=re.IGNORECASE)[0]
 
-        # Verifica se o nome continua na linha seguinte
-        if i < len(linhas):
-            prox = linhas[i].strip()
-            # Linha de continuação: não começa com número de lote, sem CNPJ e não é cabeçalho
-            if (prox
-                    and not pat_lote.match(prox)
-                    and not pat_cnpj.search(prox)
-                    and not pat_skip.match(prox)
-                    and not pat_excl.search(prox)
-                    and len(prox) > 2):
-                # Complemento do nome
-                complemento = pat_valor.sub(' ', prox).strip()
-                complemento = re.sub(r'\s{2,}', ' ', complemento).strip()
-                if complemento:
-                    nome_limpo = (nome_limpo + ' ' + complemento).strip()
-                i += 1  # consome a linha de continuação
-
-        # Escolhe o valor: pega o MAIOR entre os encontrados
-        # (evita pegar IDs numéricos menores como valor)
-        valor_str = "—"
-        if valores_encontrados:
-            def to_float(v):
-                return float(v.replace('.', '').replace(',', '.'))
-            maior = max(valores_encontrados, key=to_float)
-            valor_str = f"R$ {maior}"
+        nome = re.sub(r'\s+', ' ', resto).strip(' ,;-/')
 
         resultado.append({
             "lote":        num,
-            "arrematante": nome_limpo or "—",
-            "valor":       valor_str
+            "arrematante": nome or "—",
+            "valor":       f"R$ {valor}"
         })
 
     resultado.sort(key=lambda x: int(x['lote']) if x['lote'].isdigit() else 9999)
